@@ -13,7 +13,7 @@
         <span class="muted" id="top-bar-name"></span>
       </div>
       <div style="flex: 0 0 auto;">
-        <button class="secondary hidden" id="btn-switch-parent" onclick="handleSwitchToParentMode(this)">Switch to Parent Mode</button>
+        <button class="secondary" onclick="handleSwitchUser(this)">Switch User</button>
         <button class="secondary" onclick="handleLogout(this)">Log out</button>
       </div>
     </div>
@@ -57,7 +57,6 @@
 
       topBar.classList.remove('hidden');
       document.getElementById('top-bar-name').textContent = ' — ' + (getDisplayName() || '');
-      document.getElementById('btn-switch-parent').classList.toggle('hidden', role === 'ADMIN');
 
       hideAllViews();
       if (role === 'ADMIN') {
@@ -69,13 +68,13 @@
       }
     }
 
-    function handleSwitchToParentMode(button) {
+    function handleSwitchUser(button) {
       showModal({
-        title: 'Switch to Parent Mode',
-        bodyText: 'Enter a parent/admin username and access code.',
+        title: 'Switch User',
+        bodyText: 'Enter a username and access code to switch to that account.',
         fields: [
-          { key: 'username', label: 'Parent username', type: 'text' },
-          { key: 'passcode', label: 'Parent access code', type: 'password' }
+          { key: 'username', label: 'Username', type: 'text' },
+          { key: 'passcode', label: 'Access code', type: 'password' }
         ],
         confirmLabel: 'Switch'
       }).then(function (result) {
@@ -83,10 +82,6 @@
         if (!result.values.username || !result.values.passcode) { showError('Enter both fields.'); return; }
 
         callPublic('login', [result.values.username, result.values.passcode], function (session) {
-          if (session.role !== 'ADMIN') {
-            showError('That account is not a parent/admin account.');
-            return;
-          }
           setSession(session);
           routeToDashboard();
         }, null, button);

@@ -27,4 +27,13 @@
     hideAllViews();
     document.getElementById('view-login').classList.remove('hidden');
   }
+
+  ['login-username', 'login-passcode'].forEach(function (id) {
+    document.getElementById(id).addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleLogin(document.querySelector('#view-login button'));
+      }
+    });
+  });
 </script>

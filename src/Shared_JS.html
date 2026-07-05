@@ -154,9 +154,17 @@
       }
 
       fields.forEach(function (f) {
-        if (f.type === 'select') {
-          document.getElementById('modal-field-' + f.key).addEventListener('change', applyVisibility);
-        }
+        var el = document.getElementById('modal-field-' + f.key);
+        if (f.type === 'select') el.addEventListener('change', applyVisibility);
+        el.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            modalConfirm_();
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            modalCancel_();
+          }
+        });
       });
       applyVisibility();
 
