@@ -96,7 +96,7 @@
     <div class="card">
       <h3>My transactions</h3>
       <table>
-        <thead><tr><th>Date</th><th>Type</th><th>Details</th><th>Status</th></tr></thead>
+        <thead><tr><th>Date</th><th>Type</th><th>Details</th><th>Status</th><th></th></tr></thead>
         <tbody id="kid-history-rows"></tbody>
       </table>
     </div>
@@ -157,14 +157,47 @@
     });
   }
 
+  var _kidHistoryCache = [];
+
   function loadKidHistory() {
     callAuthed('listMyTransactions', [], function (transactions) {
+      _kidHistoryCache = transactions;
       var rows = transactions.map(function (t) {
         var details = t.Ticker ? (t.Ticker + ' x ' + t.Quantity) : formatMoney(t.Amount);
         return '<tr><td>' + escapeHtml(t.RequestedAt) + '</td><td>' + escapeHtml(t.Type) + '</td><td>' +
-          escapeHtml(details) + '</td><td><span class="badge badge-' + t.Status + '">' + t.Status + '</span></td></tr>';
+          escapeHtml(details) + '</td><td><span class="badge badge-' + t.Status + '">' + t.Status + '</span></td><td>' +
+          '<button class="secondary" onclick="viewKidTxnDetail(\'' + t.TransactionId + '\')">Details</button></td></tr>';
       }).join('');
-      document.getElementById('kid-history-rows').innerHTML = rows || '<tr><td colspan="4" class="muted">No transactions yet.</td></tr>';
+      document.getElementById('kid-history-rows').innerHTML = rows || '<tr><td colspan="5" class="muted">No transactions yet.</td></tr>';
+    });
+  }
+
+  /** Builds a multi-line detail summary for a transaction, including the parent's approve/reject comment if any. */
+  function buildKidTxnDetailText_(t) {
+    var lines = ['Type: ' + t.Type, 'Requested: ' + t.RequestedAt, 'Status: ' + t.Status];
+    if (t.Ticker) {
+      lines.push('Ticker: ' + t.Ticker, 'Quantity: ' + t.Quantity, 'Price: ' + formatMoney(t.PriceAtApproval || t.PriceAtRequest));
+    }
+    lines.push('Amount: ' + formatMoney(t.Amount));
+    if (t.Notes) lines.push('Your note: ' + t.Notes);
+    if (t.Status !== 'PENDING') {
+      lines.push('Reviewed: ' + t.ReviewedAt);
+      lines.push((t.Status === 'REJECTED' ? 'Reason from your parent' : 'Comment from your parent') + ': ' + (t.ReviewNote || '(none)'));
+    }
+    return lines.join('\n');
+  }
+
+  function viewKidTxnDetail(txnId) {
+    var t = null;
+    for (var i = 0; i < _kidHistoryCache.length; i++) {
+      if (_kidHistoryCache[i].TransactionId === txnId) { t = _kidHistoryCache[i]; break; }
+    }
+    if (!t) return;
+    showModal({
+      title: 'Transaction details',
+      bodyText: buildKidTxnDetailText_(t),
+      fields: [],
+      confirmLabel: 'Close'
     });
   }
 
