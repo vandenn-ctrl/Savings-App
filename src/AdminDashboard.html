@@ -1,12 +1,40 @@
 <div id="view-admin" class="app-shell hidden">
   <div class="tabs">
-    <button id="admin-tab-btn-approvals" class="active" onclick="adminShowTab('approvals')">Approvals</button>
+    <button id="admin-tab-btn-overview" class="active" onclick="adminShowTab('overview')">Overview</button>
+    <button id="admin-tab-btn-approvals" onclick="adminShowTab('approvals')">Approvals</button>
     <button id="admin-tab-btn-kids" onclick="adminShowTab('kids')">Kids</button>
     <button id="admin-tab-btn-rates" onclick="adminShowTab('rates')">Rates</button>
     <button id="admin-tab-btn-users" onclick="adminShowTab('users')">Users</button>
   </div>
 
-  <div id="admin-tab-approvals">
+  <div id="admin-tab-overview">
+    <div class="card">
+      <h2>Family overview</h2>
+      <div class="stat-row">
+        <div class="stat-tile">
+          <div class="label">Total savings</div>
+          <div class="value" id="overview-total-savings">$0.00</div>
+        </div>
+        <div class="stat-tile">
+          <div class="label">Total investments</div>
+          <div class="value" id="overview-total-investments">$0.00</div>
+        </div>
+        <div class="stat-tile">
+          <div class="label">Family net worth</div>
+          <div class="value" id="overview-total-networth">$0.00</div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>By kid</h3>
+      <table>
+        <thead><tr><th>Kid</th><th>Savings</th><th>Investments</th><th>Net worth</th></tr></thead>
+        <tbody id="overview-kids-rows"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="admin-tab-approvals" class="hidden">
     <div class="card">
       <h2>Pending approvals</h2>
       <table>
@@ -30,8 +58,8 @@
     <div class="card">
       <h3>Global savings rate</h3>
       <p class="muted">Current: <span id="admin-current-rate">--</span>% APY (effective <span id="admin-current-rate-date">--</span>)</p>
-      <label for="admin-global-rate">New annual rate (e.g. 0.03 for 3%)</label>
-      <input id="admin-global-rate" type="number" min="0" max="1" step="0.001" />
+      <label for="admin-global-rate">New annual rate % (e.g. 3 for 3%, 2.5 for 2.5%)</label>
+      <input id="admin-global-rate" type="number" min="0" max="100" step="0.01" />
       <label for="admin-global-rate-date">Effective from</label>
       <input id="admin-global-rate-date" type="date" />
       <button onclick="submitGlobalRate(this)">Update global rate</button>
@@ -40,8 +68,8 @@
       <h3>Per-kid override</h3>
       <label for="admin-override-user">Kid</label>
       <select id="admin-override-user"></select>
-      <label for="admin-override-rate">Override annual rate (blank to clear)</label>
-      <input id="admin-override-rate" type="number" min="0" max="1" step="0.001" />
+      <label for="admin-override-rate">Override annual rate % (blank to clear)</label>
+      <input id="admin-override-rate" type="number" min="0" max="100" step="0.01" />
       <button onclick="submitRateOverride(this)">Set override</button>
     </div>
   </div>
@@ -94,10 +122,11 @@
   var _adminPendingCache = [];
 
   function adminShowTab(name) {
-    ['approvals', 'kids', 'rates', 'users'].forEach(function (t) {
+    ['overview', 'approvals', 'kids', 'rates', 'users'].forEach(function (t) {
       document.getElementById('admin-tab-' + t).classList.toggle('hidden', t !== name);
       document.getElementById('admin-tab-btn-' + t).classList.toggle('active', t === name);
     });
+    if (name === 'overview') loadOverviewTab();
     if (name === 'approvals') loadPendingApprovals();
     if (name === 'kids') loadKidsOverview();
     if (name === 'rates') loadRatesTab();
@@ -105,7 +134,44 @@
   }
 
   function loadAdminDashboard() {
-    loadPendingApprovals();
+    loadOverviewTab();
+  }
+
+  function loadOverviewTab() {
+    callAuthed('listUsers', [], function (users) {
+      var kids = users.filter(function (u) { return u.role === 'KID'; });
+      if (kids.length === 0) {
+        document.getElementById('overview-kids-rows').innerHTML = '<tr><td colspan="4" class="muted">No kids yet.</td></tr>';
+        ['overview-total-savings', 'overview-total-investments', 'overview-total-networth'].forEach(function (id) {
+          document.getElementById(id).textContent = formatMoney(0);
+        });
+        return;
+      }
+
+      var rowsHtml = [];
+      var totals = { savings: 0, investments: 0, netWorth: 0 };
+      var remaining = kids.length;
+      kids.forEach(function (kid) {
+        callAuthed('getUserSummary', [kid.userId], function (summary) {
+          totals.savings += summary.savings.cashBalance;
+          totals.investments += summary.holdingsValue;
+          totals.netWorth += summary.netWorth;
+          rowsHtml.push({
+            order: kid.userId,
+            html: '<tr><td>' + escapeHtml(kid.avatar || '🙂') + ' ' + escapeHtml(kid.displayName) + '</td><td>' +
+              formatMoney(summary.savings.cashBalance) + '</td><td>' + formatMoney(summary.holdingsValue) +
+              '</td><td>' + formatMoney(summary.netWorth) + '</td></tr>'
+          });
+          remaining--;
+          if (remaining === 0) {
+            document.getElementById('overview-kids-rows').innerHTML = rowsHtml.map(function (r) { return r.html; }).join('');
+            document.getElementById('overview-total-savings').textContent = formatMoney(totals.savings);
+            document.getElementById('overview-total-investments').textContent = formatMoney(totals.investments);
+            document.getElementById('overview-total-networth').textContent = formatMoney(totals.netWorth);
+          }
+        });
+      });
+    });
   }
 
   function loadPendingApprovals() {

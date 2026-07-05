@@ -37,13 +37,19 @@ function getGlobalRateInfo(token) {
   return { rate: Number(row.GlobalAnnualRate), effectiveFrom: normalizeDateOnlyString_(row.EffectiveFrom) };
 }
 
-/** Admin-only: changes the global rate effective from a given date, preserving history. */
-function setGlobalRate(token, newRate, effectiveFromStr) {
+/**
+ * Admin-only: changes the global rate effective from a given date, preserving
+ * history. newRatePercent is in percentage terms (enter 3 for 3%, 2.5 for
+ * 2.5%) -- converted to the decimal fraction the rest of the app stores and
+ * calculates with.
+ */
+function setGlobalRate(token, newRatePercent, effectiveFromStr) {
   var admin = validateSession(token);
   requireAdmin_(admin);
-  newRate = Number(newRate);
-  if (isNaN(newRate) || newRate < 0) throw new Error('Enter a valid annual rate.');
+  newRatePercent = Number(newRatePercent);
+  if (isNaN(newRatePercent) || newRatePercent < 0) throw new Error('Enter a valid annual rate.');
   if (!effectiveFromStr) throw new Error('Enter an effective date.');
+  var newRate = newRatePercent / 100;
 
   var current = getCurrentGlobalRateRow_();
   var currentRow = findRowById(SHEETS.INTEREST_CONFIG, 'ConfigId', current.ConfigId);
@@ -63,8 +69,11 @@ function setGlobalRate(token, newRate, effectiveFromStr) {
   return { ok: true };
 }
 
-/** Admin-only: set (or clear, if rate is null/blank) a per-kid rate override. */
-function setUserRateOverride(token, targetUserId, rate) {
+/**
+ * Admin-only: set (or clear, if ratePercent is null/blank) a per-kid rate
+ * override. Same percentage-terms convention as setGlobalRate.
+ */
+function setUserRateOverride(token, targetUserId, ratePercent) {
   var admin = validateSession(token);
   requireAdmin_(admin);
 
@@ -74,7 +83,8 @@ function setUserRateOverride(token, targetUserId, rate) {
   if (!savings) throw new Error('Savings account not found for user.');
   var rowRef = findRowById(SHEETS.ACCOUNTS, 'AccountId', savings.AccountId);
 
-  var value = (rate === null || rate === '' || rate === undefined || isNaN(Number(rate))) ? '' : Number(rate);
+  var isBlank = ratePercent === null || ratePercent === '' || ratePercent === undefined || isNaN(Number(ratePercent));
+  var value = isBlank ? '' : Number(ratePercent) / 100;
   updateRowByIndex(SHEETS.ACCOUNTS, rowRef.rowIndex, { InterestRateOverride: value });
 
   logAudit_(admin.UserId, 'SET_RATE_OVERRIDE', 'User', targetUserId, { rate: value });
