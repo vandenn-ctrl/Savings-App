@@ -59,6 +59,11 @@ function roundMoney(amount) {
   return Math.round((amount || 0) * 100) / 100;
 }
 
+/** Rounds a share/unit quantity to 6 decimal places -- enough precision for fractional-share buys. */
+function roundQuantity(qty) {
+  return Math.round((qty || 0) * 1e6) / 1e6;
+}
+
 /**
  * Wraps a function call, converting any thrown error into a plain
  * {error: message} object so google.script.run failure handlers in the

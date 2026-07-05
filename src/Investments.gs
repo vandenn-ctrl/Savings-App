@@ -93,19 +93,27 @@ function refreshPricesInternal_(onlyTicker) {
   sheet.getRange(2, updatedAtCol, updatedAtValues.length, 1).setValues(updatedAtValues);
 }
 
-function requestBuy(token, ticker, quantity) {
+/**
+ * Kid-facing buy: takes a dollar amount to invest (not a share/unit
+ * quantity), since that's the natural way a kid thinks about "I want to put
+ * $20 into AAPL." Quantity is derived from the current price and locked in
+ * at request time, same as a directly-entered quantity would be -- the
+ * actual cost is re-priced at approval time as usual.
+ */
+function requestBuy(token, ticker, dollarAmount) {
   var user = validateSession(token);
   ticker = String(ticker || '').trim().toUpperCase();
-  quantity = Number(quantity);
-  if (!ticker || !quantity || quantity <= 0) throw new Error('Enter a ticker and quantity.');
+  dollarAmount = Number(dollarAmount);
+  if (!ticker || !dollarAmount || dollarAmount <= 0) throw new Error('Enter a ticker and a dollar amount.');
 
   ensureTickerTracked_(ticker);
   var quote = getQuote_(ticker);
-  var amount = roundMoney(quantity * quote.price);
+  var quantity = roundQuantity(dollarAmount / quote.price);
+  if (quantity <= 0) throw new Error('That amount is too small to buy any ' + ticker + ' at the current price.');
 
   var savings = getAccountForUser_(user.UserId, ACCOUNT_TYPE.SAVINGS);
-  if (amount > Number(savings.CashBalance)) {
-    throw new Error('This purchase (' + formatCurrency(amount) + ') exceeds your savings balance.');
+  if (dollarAmount > Number(savings.CashBalance)) {
+    throw new Error('This purchase (' + formatCurrency(dollarAmount) + ') exceeds your savings balance.');
   }
 
   var investment = getAccountForUser_(user.UserId, ACCOUNT_TYPE.INVESTMENT);
@@ -115,7 +123,7 @@ function requestBuy(token, ticker, quantity) {
     AccountId: investment.AccountId,
     Type: TRANSACTION_TYPE.INVEST_BUY,
     Status: TRANSACTION_STATUS.PENDING,
-    Amount: amount,
+    Amount: roundMoney(dollarAmount),
     Ticker: ticker,
     Quantity: quantity,
     PriceAtRequest: quote.price,
