@@ -5,6 +5,7 @@
     <button id="admin-tab-btn-kids" onclick="adminShowTab('kids')">Kids</button>
     <button id="admin-tab-btn-rates" onclick="adminShowTab('rates')">Rates</button>
     <button id="admin-tab-btn-users" onclick="adminShowTab('users')">Users</button>
+    <button id="admin-tab-btn-transactions" onclick="adminShowTab('transactions')">Transactions</button>
     <button id="admin-tab-btn-communication" onclick="adminShowTab('communication')">Communication</button>
   </div>
 
@@ -117,6 +118,17 @@
     </div>
   </div>
 
+  <div id="admin-tab-transactions" class="hidden">
+    <div class="card">
+      <h2>All transactions</h2>
+      <p class="muted">Edit corrects the amount/quantity and note; if the transaction was already approved, its balance/holdings effect is automatically reversed and reapplied. Delete removes it entirely (and reverses its effect, if approved).</p>
+      <table>
+        <thead><tr><th>Date</th><th>Kid</th><th>Type</th><th>Details</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="admin-transactions-rows"></tbody>
+      </table>
+    </div>
+  </div>
+
   <div id="admin-tab-communication" class="hidden">
     <div class="card">
       <h2>Send an email</h2>
@@ -152,7 +164,7 @@
   var _adminPendingCache = [];
 
   function adminShowTab(name) {
-    ['overview', 'approvals', 'kids', 'rates', 'users', 'communication'].forEach(function (t) {
+    ['overview', 'approvals', 'kids', 'rates', 'users', 'transactions', 'communication'].forEach(function (t) {
       document.getElementById('admin-tab-' + t).classList.toggle('hidden', t !== name);
       document.getElementById('admin-tab-btn-' + t).classList.toggle('active', t === name);
     });
@@ -161,6 +173,7 @@
     if (name === 'kids') loadKidsOverview();
     if (name === 'rates') loadRatesTab();
     if (name === 'users') loadUsersTab();
+    if (name === 'transactions') loadTransactionsTab();
     if (name === 'communication') loadCommunicationTab();
   }
 
@@ -269,6 +282,73 @@
     });
   }
 
+  var _adminAllTxnsCache = [];
+
+  function loadTransactionsTab() {
+    callAuthed('listAllTransactions', [], function (all) {
+      _adminAllTxnsCache = all;
+      var rows = all.map(function (t) {
+        var details = t.Ticker
+          ? (t.Ticker + ' x ' + t.Quantity + (t.PriceSource === 'MANUAL' ? ' (manual price)' : ''))
+          : formatMoney(t.Amount);
+        return '<tr><td>' + escapeHtml(t.RequestedAt) + '</td><td>' + escapeHtml(t.displayName || t.UserId) +
+          '</td><td>' + escapeHtml(t.Type) + '</td><td>' + escapeHtml(details) + '</td><td>' +
+          '<span class="badge badge-' + t.Status + '">' + t.Status + '</span></td><td>' +
+          '<button class="secondary" onclick="editTxn(this, \'' + t.TransactionId + '\')">Edit</button> ' +
+          '<button class="danger" onclick="deleteTxn(this, \'' + t.TransactionId + '\')">Delete</button></td></tr>';
+      }).join('');
+      document.getElementById('admin-transactions-rows').innerHTML = rows || '<tr><td colspan="6" class="muted">No transactions yet.</td></tr>';
+    });
+  }
+
+  function findAnyTxn_(txnId) {
+    for (var i = 0; i < _adminAllTxnsCache.length; i++) {
+      if (_adminAllTxnsCache[i].TransactionId === txnId) return _adminAllTxnsCache[i];
+    }
+    return null;
+  }
+
+  function editTxn(button, txnId) {
+    var txn = findAnyTxn_(txnId);
+    if (!txn) { showError('Transaction not found -- try reloading the tab.'); return; }
+    var isInvest = txn.Type === 'INVEST_BUY' || txn.Type === 'INVEST_SELL';
+
+    showModal({
+      title: 'Edit transaction',
+      bodyText: buildTransactionDetailText_(txn) + (txn.Status === 'APPROVED' ? '\n\nThis was already approved -- its balance/holdings effect will be reversed and reapplied with the new values.' : ''),
+      fields: isInvest
+        ? [{ key: 'quantity', label: 'Quantity', type: 'number', value: String(txn.Quantity) }, { key: 'notes', label: 'Note', value: txn.Notes || '' }]
+        : [{ key: 'amount', label: 'Amount', type: 'number', value: String(txn.Amount) }, { key: 'notes', label: 'Note', value: txn.Notes || '' }],
+      confirmLabel: 'Save changes'
+    }).then(function (result) {
+      if (!result.confirmed) return;
+      var updates = { notes: result.values.notes };
+      if (isInvest) { updates.quantity = result.values.quantity; } else { updates.amount = result.values.amount; }
+
+      callAuthed('editTransaction', [txnId, updates], function () {
+        showError('Transaction updated.');
+        loadTransactionsTab();
+      }, null, button);
+    });
+  }
+
+  function deleteTxn(button, txnId) {
+    var txn = findAnyTxn_(txnId);
+    showModal({
+      title: 'Delete transaction?',
+      bodyText: (txn ? buildTransactionDetailText_(txn) : '') +
+        '\n\nThis permanently removes it' + (txn && txn.Status === 'APPROVED' ? ' and reverses its balance/holdings effect.' : '.'),
+      fields: [],
+      confirmLabel: 'Delete'
+    }).then(function (result) {
+      if (!result.confirmed) return;
+      callAuthed('deleteTransaction', [txnId], function () {
+        showError('Transaction deleted.');
+        loadTransactionsTab();
+      }, null, button);
+    });
+  }
+
   function loadKidsOverview() {
     callAuthed('listUsers', [], function (users) {
       _adminUsersCache = users;
@@ -314,6 +394,10 @@
         { key: 'amount', label: 'Amount', type: 'number', showWhen: { key: 'type', values: ['SAVINGS_DEPOSIT', 'SAVINGS_WITHDRAWAL'] } },
         { key: 'ticker', label: 'Ticker', showWhen: { key: 'type', values: ['INVEST_BUY', 'INVEST_SELL'] } },
         { key: 'quantity', label: 'Quantity', type: 'number', showWhen: { key: 'type', values: ['INVEST_BUY', 'INVEST_SELL'] } },
+        {
+          key: 'price', label: 'Actual price per share (optional -- uses live price if blank)', type: 'number',
+          showWhen: { key: 'type', values: ['INVEST_BUY', 'INVEST_SELL'] }
+        },
         { key: 'note', label: 'Optional note' }
       ],
       confirmLabel: 'Enter transaction'
@@ -329,7 +413,7 @@
         }, null, button);
       } else {
         if (!v.ticker || !v.quantity || Number(v.quantity) <= 0) { showError('Enter a ticker and quantity.'); return; }
-        callAuthed('adminRecordInvestmentTransaction', [userId, v.type, v.ticker, parseFloat(v.quantity), v.note], function () {
+        callAuthed('adminRecordInvestmentTransaction', [userId, v.type, v.ticker, parseFloat(v.quantity), v.note, v.price || null], function () {
           showError('Transaction recorded.');
           loadKidsOverview();
         }, null, button);

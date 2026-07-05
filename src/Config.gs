@@ -27,9 +27,11 @@ var COLUMNS = {
     'Status', 'StatementFrequency', 'StatementDay', 'Email', 'CreatedAt', 'CreatedBy', 'Avatar', 'Theme'],
   Accounts: ['AccountId', 'UserId', 'AccountType', 'CashBalance', 'InterestRateOverride', 'LastAccrualDate'],
   InterestConfig: ['ConfigId', 'GlobalAnnualRate', 'EffectiveFrom', 'EffectiveTo', 'SetBy', 'SetAt'],
+  // PriceSource ('MANUAL' or 'MARKET') is appended at the end -- it's blank for
+  // non-investment transaction types and for rows written before this existed.
   Transactions: ['TransactionId', 'UserId', 'AccountId', 'Type', 'Status', 'Amount', 'Ticker',
     'Quantity', 'PriceAtRequest', 'PriceAtApproval', 'RealizedGainLoss', 'RequestedAt',
-    'ReviewedBy', 'ReviewedAt', 'ReviewNote', 'Notes'],
+    'ReviewedBy', 'ReviewedAt', 'ReviewNote', 'Notes', 'PriceSource'],
   Holdings: ['HoldingId', 'UserId', 'AccountId', 'Ticker', 'AssetClass', 'Quantity', 'AvgCostBasis', 'LastUpdated'],
   // LivePrice holds the live =GOOGLEFINANCE(...) formula; LastPrice is the plain value
   // copied from it by refreshPrices(), which is what all application logic reads.
@@ -46,6 +48,7 @@ var USER_STATUS = { ACTIVE: 'ACTIVE', DISABLED: 'DISABLED' };
 var ACCOUNT_TYPE = { SAVINGS: 'SAVINGS', INVESTMENT: 'INVESTMENT' };
 var ASSET_CLASS = { STOCK: 'STOCK', ETF: 'ETF', CRYPTO: 'CRYPTO' };
 var STATEMENT_FREQUENCY = { WEEKLY: 'WEEKLY', MONTHLY: 'MONTHLY', NONE: 'NONE' };
+var PRICE_SOURCE = { MANUAL: 'MANUAL', MARKET: 'MARKET' };
 
 var TRANSACTION_TYPE = {
   SAVINGS_DEPOSIT: 'SAVINGS_DEPOSIT',

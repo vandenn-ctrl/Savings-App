@@ -94,22 +94,38 @@ function refreshPricesInternal_(onlyTicker) {
 }
 
 /**
+ * Resolves the price to use for a new buy/sell request: a manually-entered
+ * price if given (for logging a real trade that already happened at a known
+ * price), otherwise the live GOOGLEFINANCE-derived quote. Either way the
+ * ticker gets tracked in Watchlist so its value still shows up live in
+ * holdings going forward.
+ */
+function resolveRequestPrice_(ticker, manualPrice) {
+  ensureTickerTracked_(ticker);
+  var manual = Number(manualPrice);
+  if (manual && manual > 0) {
+    return { price: manual, source: PRICE_SOURCE.MANUAL };
+  }
+  return { price: getQuote_(ticker).price, source: PRICE_SOURCE.MARKET };
+}
+
+/**
  * Kid-facing buy: takes a dollar amount to invest (not a share/unit
  * quantity), since that's the natural way a kid thinks about "I want to put
- * $20 into AAPL." Quantity is derived from the current price and locked in
- * at request time, same as a directly-entered quantity would be -- the
- * actual cost is re-priced at approval time as usual.
+ * $20 into AAPL." Quantity is derived from the request-time price. If
+ * manualPrice is given (the actual real-world price paid), it's used as-is
+ * and preserved through approval rather than re-fetched; otherwise the
+ * price is re-fetched fresh at approval time as before.
  */
-function requestBuy(token, ticker, dollarAmount) {
+function requestBuy(token, ticker, dollarAmount, manualPrice) {
   var user = validateSession(token);
   ticker = String(ticker || '').trim().toUpperCase();
   dollarAmount = Number(dollarAmount);
   if (!ticker || !dollarAmount || dollarAmount <= 0) throw new Error('Enter a ticker and a dollar amount.');
 
-  ensureTickerTracked_(ticker);
-  var quote = getQuote_(ticker);
-  var quantity = roundQuantity(dollarAmount / quote.price);
-  if (quantity <= 0) throw new Error('That amount is too small to buy any ' + ticker + ' at the current price.');
+  var priceInfo = resolveRequestPrice_(ticker, manualPrice);
+  var quantity = roundQuantity(dollarAmount / priceInfo.price);
+  if (quantity <= 0) throw new Error('That amount is too small to buy any ' + ticker + ' at that price.');
 
   var savings = getAccountForUser_(user.UserId, ACCOUNT_TYPE.SAVINGS);
   if (dollarAmount > Number(savings.CashBalance)) {
@@ -126,15 +142,17 @@ function requestBuy(token, ticker, dollarAmount) {
     Amount: roundMoney(dollarAmount),
     Ticker: ticker,
     Quantity: quantity,
-    PriceAtRequest: quote.price,
+    PriceAtRequest: priceInfo.price,
     PriceAtApproval: '', RealizedGainLoss: '',
     RequestedAt: toIsoString(nowDate()),
     ReviewedBy: '', ReviewedAt: '', ReviewNote: '',
-    Notes: ''
+    Notes: '',
+    PriceSource: priceInfo.source
   });
 }
 
-function requestSell(token, ticker, quantity) {
+/** Kid-facing sell: quantity as before. Same manualPrice convention as requestBuy. */
+function requestSell(token, ticker, quantity, manualPrice) {
   var user = validateSession(token);
   ticker = String(ticker || '').trim().toUpperCase();
   quantity = Number(quantity);
@@ -145,8 +163,8 @@ function requestSell(token, ticker, quantity) {
     throw new Error('You do not hold enough ' + ticker + ' to sell that quantity.');
   }
 
-  var quote = getQuote_(ticker);
-  var amount = roundMoney(quantity * quote.price);
+  var priceInfo = resolveRequestPrice_(ticker, manualPrice);
+  var amount = roundMoney(quantity * priceInfo.price);
   var investment = getAccountForUser_(user.UserId, ACCOUNT_TYPE.INVESTMENT);
 
   return appendRow(SHEETS.TRANSACTIONS, {
@@ -158,18 +176,27 @@ function requestSell(token, ticker, quantity) {
     Amount: amount,
     Ticker: ticker,
     Quantity: quantity,
-    PriceAtRequest: quote.price,
+    PriceAtRequest: priceInfo.price,
     PriceAtApproval: '', RealizedGainLoss: '',
     RequestedAt: toIsoString(nowDate()),
     ReviewedBy: '', ReviewedAt: '', ReviewNote: '',
-    Notes: ''
+    Notes: '',
+    PriceSource: priceInfo.source
   });
+}
+
+/** Resolves the approval-time price: the manual price locked in at request time, or a fresh live quote. */
+function resolveApprovalPrice_(txn) {
+  if (txn.PriceSource === PRICE_SOURCE.MANUAL) {
+    return Number(txn.PriceAtRequest);
+  }
+  refreshSingleTickerPrice_(txn.Ticker);
+  return getQuote_(txn.Ticker).price;
 }
 
 /** Called by Transactions.approveTransaction for INVEST_BUY. Returns the price actually applied. */
 function applyApprovedBuy_(txn) {
-  refreshSingleTickerPrice_(txn.Ticker);
-  var priceAtApproval = getQuote_(txn.Ticker).price;
+  var priceAtApproval = resolveApprovalPrice_(txn);
   var cost = roundMoney(Number(txn.Quantity) * priceAtApproval);
 
   var savingsAccount = getAccountForUser_(txn.UserId, ACCOUNT_TYPE.SAVINGS);
@@ -193,8 +220,7 @@ function applyApprovedSell_(txn) {
     throw new Error('Holdings changed since this request was made; insufficient ' + txn.Ticker + ' to approve this sell.');
   }
 
-  refreshSingleTickerPrice_(txn.Ticker);
-  var priceAtApproval = getQuote_(txn.Ticker).price;
+  var priceAtApproval = resolveApprovalPrice_(txn);
   var proceeds = roundMoney(Number(txn.Quantity) * priceAtApproval);
   var realizedGainLoss = roundMoney(Number(txn.Quantity) * (priceAtApproval - Number(holding.AvgCostBasis)));
 
