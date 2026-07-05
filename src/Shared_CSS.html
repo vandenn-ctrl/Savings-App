@@ -85,8 +85,12 @@
   .badge-REJECTED { background: #fbdede; color: #97281f; }
 
   .tabs { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
-  .tabs button { background: transparent; color: var(--color-text); border: 1px solid var(--color-border); }
+  .tabs button { background: transparent; color: var(--color-text); border: 1px solid var(--color-border); display: inline-flex; align-items: center; gap: 6px; }
   .tabs button.active { background: var(--color-primary); color: white; border-color: var(--color-primary); }
+  .tab-icon { font-size: 16px; line-height: 1; }
+
+  /* Default: icon-only tabs. Toggling "Show tab text labels" in the Theme menu adds this class to reveal labels. */
+  body:not(.show-tab-labels) .tab-label { display: none; }
 
   .error-banner {
     background: #fbdede;

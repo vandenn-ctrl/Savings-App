@@ -43,7 +43,7 @@
     return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
   }
 
-  /** Applies a theme JSON string (or '' to reset) as CSS custom property overrides. */
+  /** Applies a theme JSON string (or '' to reset) as CSS custom property overrides, plus the tab-label toggle. */
   function applyTheme(themeStr) {
     var root = document.documentElement.style;
     var theme = null;
@@ -53,6 +53,7 @@
       ['--color-primary', '--color-primary-dark', '--color-bg'].forEach(function (p) {
         root.removeProperty(p);
       });
+      document.body.classList.remove('show-tab-labels');
       return;
     }
 
@@ -65,6 +66,7 @@
     } else if (theme.bgFrom) {
       root.setProperty('--color-bg', theme.bgFrom);
     }
+    document.body.classList.toggle('show-tab-labels', !!theme.showTabLabels);
   }
 
   // --- Error banner -------------------------------------------------------

@@ -112,6 +112,14 @@
           {
             key: 'bgTo', label: 'Gradient second color', type: 'color', value: current.bgTo || '#dbe6e0',
             showWhen: { key: 'bgMode', values: ['gradient'] }
+          },
+          {
+            key: 'showTabLabels', label: 'Tab buttons', type: 'select',
+            value: current.showTabLabels ? '1' : '0',
+            options: [
+              { value: '0', label: 'Icons only' },
+              { value: '1', label: 'Icons + text labels' }
+            ]
           }
         ],
         confirmLabel: 'Save theme'
@@ -121,7 +129,8 @@
           accent: result.values.accent,
           bgMode: result.values.bgMode,
           bgFrom: result.values.bgFrom,
-          bgTo: result.values.bgTo
+          bgTo: result.values.bgTo,
+          showTabLabels: result.values.showTabLabels === '1'
         };
         var themeStr = JSON.stringify(theme);
         callAuthed('setMyTheme', [themeStr], function () {
