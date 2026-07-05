@@ -13,7 +13,7 @@
         <span class="muted" id="top-bar-name"></span>
       </div>
       <div style="flex: 0 0 auto;">
-        <button class="secondary" onclick="handleLogout()">Log out</button>
+        <button class="secondary" onclick="handleLogout(this)">Log out</button>
       </div>
     </div>
   </div>
@@ -55,7 +55,7 @@
       }
     }
 
-    function handleLogout() {
+    function handleLogout(button) {
       callAuthed('logout', [], function () {
         clearSession();
         routeToDashboard();
@@ -63,7 +63,7 @@
         // Even if the server call fails (e.g. already-expired session), clear locally.
         clearSession();
         routeToDashboard();
-      });
+      }, button);
     }
 
     document.addEventListener('DOMContentLoaded', routeToDashboard);

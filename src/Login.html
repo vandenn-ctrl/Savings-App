@@ -6,27 +6,21 @@
     <input id="login-username" type="text" autocomplete="username" />
     <label for="login-passcode">Access code</label>
     <input id="login-passcode" type="password" inputmode="numeric" autocomplete="current-password" />
-    <button id="login-submit" onclick="handleLogin()">Log in</button>
+    <button onclick="handleLogin(this)">Log in</button>
   </div>
 </div>
 
 <script>
-  function handleLogin() {
+  function handleLogin(button) {
     var username = document.getElementById('login-username').value.trim();
     var passcode = document.getElementById('login-passcode').value;
     if (!username || !passcode) { showError('Enter a username and access code.'); return; }
 
-    var btn = document.getElementById('login-submit');
-    btn.disabled = true;
-
     callPublic('login', [username, passcode], function (session) {
-      btn.disabled = false;
       setSession(session);
       document.getElementById('login-passcode').value = '';
       routeToDashboard();
-    }, function () {
-      btn.disabled = false;
-    });
+    }, null, button);
   }
 
   function showLoginView() {

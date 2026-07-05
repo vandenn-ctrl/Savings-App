@@ -121,7 +121,7 @@ function requestBuy(token, ticker, quantity) {
     PriceAtRequest: quote.price,
     PriceAtApproval: '', RealizedGainLoss: '',
     RequestedAt: toIsoString(nowDate()),
-    ReviewedBy: '', ReviewedAt: '', RejectionReason: '',
+    ReviewedBy: '', ReviewedAt: '', ReviewNote: '',
     Notes: ''
   });
 }
@@ -153,7 +153,7 @@ function requestSell(token, ticker, quantity) {
     PriceAtRequest: quote.price,
     PriceAtApproval: '', RealizedGainLoss: '',
     RequestedAt: toIsoString(nowDate()),
-    ReviewedBy: '', ReviewedAt: '', RejectionReason: '',
+    ReviewedBy: '', ReviewedAt: '', ReviewNote: '',
     Notes: ''
   });
 }

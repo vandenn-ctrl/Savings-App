@@ -42,8 +42,8 @@
           <input id="kid-txn-note" type="text" />
         </div>
       </div>
-      <button onclick="submitSavingsRequest('SAVINGS_DEPOSIT')">Request deposit</button>
-      <button class="secondary" onclick="submitSavingsRequest('SAVINGS_WITHDRAWAL')">Request withdrawal</button>
+      <button onclick="submitSavingsRequest(this, 'SAVINGS_DEPOSIT')">Request deposit</button>
+      <button class="secondary" onclick="submitSavingsRequest(this, 'SAVINGS_WITHDRAWAL')">Request withdrawal</button>
       <p class="muted">Deposits and withdrawals need your parent's approval before they affect your balance.</p>
     </div>
   </div>
@@ -68,8 +68,8 @@
           <input id="kid-invest-qty" type="number" min="0.0001" step="0.0001" />
         </div>
       </div>
-      <button onclick="submitInvestRequest('INVEST_BUY')">Request buy</button>
-      <button class="secondary" onclick="submitInvestRequest('INVEST_SELL')">Request sell</button>
+      <button onclick="submitInvestRequest(this, 'INVEST_BUY')">Request buy</button>
+      <button class="secondary" onclick="submitInvestRequest(this, 'INVEST_SELL')">Request sell</button>
       <p class="muted">Buys draw from your savings balance once approved; sell proceeds are credited back to savings.</p>
     </div>
   </div>
@@ -95,7 +95,7 @@
       </select>
       <label for="kid-statement-day">Day (1-7 for weekly, 1-28 for monthly)</label>
       <input id="kid-statement-day" type="number" min="1" max="28" />
-      <button onclick="saveStatementPreference()">Save preference</button>
+      <button onclick="saveStatementPreference(this)">Save preference</button>
     </div>
     <div class="card">
       <h3>Change access code</h3>
@@ -103,7 +103,7 @@
       <input id="kid-old-passcode" type="password" />
       <label for="kid-new-passcode">New access code</label>
       <input id="kid-new-passcode" type="password" />
-      <button onclick="changeMyPasscode()">Update access code</button>
+      <button onclick="changeMyPasscode(this)">Update access code</button>
     </div>
   </div>
 </div>
@@ -150,7 +150,7 @@
     });
   }
 
-  function submitSavingsRequest(type) {
+  function submitSavingsRequest(button, type) {
     var amount = parseFloat(document.getElementById('kid-txn-amount').value);
     var note = document.getElementById('kid-txn-note').value;
     if (!amount || amount <= 0) { showError('Enter a valid amount.'); return; }
@@ -160,10 +160,10 @@
       document.getElementById('kid-txn-amount').value = '';
       document.getElementById('kid-txn-note').value = '';
       loadKidDashboard();
-    });
+    }, null, button);
   }
 
-  function submitInvestRequest(type) {
+  function submitInvestRequest(button, type) {
     var ticker = document.getElementById('kid-invest-ticker').value.trim().toUpperCase();
     var qty = parseFloat(document.getElementById('kid-invest-qty').value);
     if (!ticker || !qty || qty <= 0) { showError('Enter a ticker and quantity.'); return; }
@@ -173,18 +173,18 @@
       document.getElementById('kid-invest-ticker').value = '';
       document.getElementById('kid-invest-qty').value = '';
       loadKidDashboard();
-    });
+    }, null, button);
   }
 
-  function saveStatementPreference() {
+  function saveStatementPreference(button) {
     var freq = document.getElementById('kid-statement-freq').value;
     var day = parseInt(document.getElementById('kid-statement-day').value, 10) || '';
     callAuthed('setStatementPreference', [freq, day], function () {
       showError('Preference saved.');
-    });
+    }, null, button);
   }
 
-  function changeMyPasscode() {
+  function changeMyPasscode(button) {
     var oldCode = document.getElementById('kid-old-passcode').value;
     var newCode = document.getElementById('kid-new-passcode').value;
     if (!oldCode || !newCode) { showError('Enter both current and new access code.'); return; }
@@ -192,6 +192,6 @@
       document.getElementById('kid-old-passcode').value = '';
       document.getElementById('kid-new-passcode').value = '';
       showError('Access code updated.');
-    });
+    }, null, button);
   }
 </script>

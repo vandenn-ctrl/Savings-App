@@ -29,15 +29,40 @@
     if (el) el.style.display = 'none';
   }
 
+  // --- Button busy state ---------------------------------------------------
+  /**
+   * Disables a button and swaps in a "Working…" label while an async call
+   * is in flight, restoring its original label/state afterward. button is
+   * optional -- callers that don't have one just skip this.
+   */
+  function setButtonBusy(button, busy) {
+    if (!button) return;
+    if (busy) {
+      if (button.dataset.originalLabel === undefined) button.dataset.originalLabel = button.textContent;
+      button.disabled = true;
+      button.textContent = 'Working…';
+    } else {
+      button.disabled = false;
+      if (button.dataset.originalLabel !== undefined) button.textContent = button.dataset.originalLabel;
+    }
+  }
+
   // --- google.script.run wrappers -----------------------------------------
   /**
    * Calls a server function that does NOT require a session token
-   * (e.g. login). args is an array of positional arguments.
+   * (e.g. login). args is an array of positional arguments. button, if
+   * given, is disabled with a "Working…" label for the duration of the call.
    */
-  function callPublic(fnName, args, onSuccess, onError) {
+  function callPublic(fnName, args, onSuccess, onError, button) {
+    setButtonBusy(button, true);
     google.script.run
-      .withSuccessHandler(function (result) { hideError(); if (onSuccess) onSuccess(result); })
+      .withSuccessHandler(function (result) {
+        setButtonBusy(button, false);
+        hideError();
+        if (onSuccess) onSuccess(result);
+      })
       .withFailureHandler(function (err) {
+        setButtonBusy(button, false);
         var msg = (err && err.message) ? err.message : String(err);
         showError(msg);
         if (onError) onError(err);
@@ -47,13 +72,20 @@
   /**
    * Calls a server function whose first parameter is the session token.
    * Automatically redirects to the login view on an expired/invalid session.
+   * button, if given, is disabled with a "Working…" label for the duration.
    */
-  function callAuthed(fnName, args, onSuccess, onError) {
+  function callAuthed(fnName, args, onSuccess, onError, button) {
+    setButtonBusy(button, true);
     var token = getToken();
     var fullArgs = [token].concat(args || []);
     google.script.run
-      .withSuccessHandler(function (result) { hideError(); if (onSuccess) onSuccess(result); })
+      .withSuccessHandler(function (result) {
+        setButtonBusy(button, false);
+        hideError();
+        if (onSuccess) onSuccess(result);
+      })
       .withFailureHandler(function (err) {
+        setButtonBusy(button, false);
         var msg = (err && err.message) ? err.message : String(err);
         if (msg.indexOf('Session expired') !== -1 || msg.indexOf('Not logged in') !== -1 ||
             msg.indexOf('Account not found or disabled') !== -1) {

@@ -34,7 +34,7 @@
       <input id="admin-global-rate" type="number" min="0" max="1" step="0.001" />
       <label for="admin-global-rate-date">Effective from</label>
       <input id="admin-global-rate-date" type="date" />
-      <button onclick="submitGlobalRate()">Update global rate</button>
+      <button onclick="submitGlobalRate(this)">Update global rate</button>
     </div>
     <div class="card">
       <h3>Per-kid override</h3>
@@ -42,7 +42,7 @@
       <select id="admin-override-user"></select>
       <label for="admin-override-rate">Override annual rate (blank to clear)</label>
       <input id="admin-override-rate" type="number" min="0" max="1" step="0.001" />
-      <button onclick="submitRateOverride()">Set override</button>
+      <button onclick="submitRateOverride(this)">Set override</button>
     </div>
   </div>
 
@@ -74,7 +74,7 @@
         <option value="KID">Kid</option>
         <option value="ADMIN">Admin</option>
       </select>
-      <button onclick="submitCreateAccount()">Create account</button>
+      <button onclick="submitCreateAccount(this)">Create account</button>
     </div>
 
     <div class="card">
@@ -89,6 +89,7 @@
 
 <script>
   var _adminUsersCache = [];
+  var _adminPendingCache = [];
 
   function adminShowTab(name) {
     ['approvals', 'kids', 'rates', 'users'].forEach(function (t) {
@@ -107,26 +108,56 @@
 
   function loadPendingApprovals() {
     callAuthed('listPendingTransactions', [], function (pending) {
+      _adminPendingCache = pending;
       var rows = pending.map(function (t) {
         var details = t.Ticker
           ? (t.Ticker + ' x ' + t.Quantity + ' (@ ' + formatMoney(t.PriceAtRequest) + ')')
           : formatMoney(t.Amount);
         return '<tr><td>' + escapeHtml(t.RequestedAt) + '</td><td>' + escapeHtml(t.displayName || t.UserId) +
           '</td><td>' + escapeHtml(t.Type) + '</td><td>' + escapeHtml(details) + '</td><td>' +
-          '<button onclick="approveTxn(\'' + t.TransactionId + '\')">Approve</button> ' +
-          '<button class="danger" onclick="rejectTxn(\'' + t.TransactionId + '\')">Reject</button></td></tr>';
+          '<button onclick="approveTxn(this, \'' + t.TransactionId + '\')">Approve</button> ' +
+          '<button class="danger" onclick="rejectTxn(this, \'' + t.TransactionId + '\')">Reject</button></td></tr>';
       }).join('');
       document.getElementById('admin-pending-rows').innerHTML = rows || '<tr><td colspan="5" class="muted">Nothing pending.</td></tr>';
     });
   }
 
-  function approveTxn(txnId) {
-    callAuthed('approveTransaction', [txnId], function () { loadPendingApprovals(); });
+  /** Builds a human-readable multi-line summary of a pending transaction, for the approve/reject prompts. */
+  function buildTransactionDetailText_(t) {
+    var lines = [
+      'Kid: ' + (t.displayName || t.UserId),
+      'Type: ' + t.Type,
+      'Requested: ' + t.RequestedAt
+    ];
+    if (t.Ticker) {
+      lines.push('Ticker: ' + t.Ticker, 'Quantity: ' + t.Quantity, 'Price at request: ' + formatMoney(t.PriceAtRequest));
+    }
+    lines.push('Amount: ' + formatMoney(t.Amount));
+    if (t.Notes) lines.push('Kid\'s note: ' + t.Notes);
+    return lines.join('\n');
   }
 
-  function rejectTxn(txnId) {
-    var reason = window.prompt('Reason for rejecting (optional):', '') || '';
-    callAuthed('rejectTransaction', [txnId, reason], function () { loadPendingApprovals(); });
+  function findPendingTxn_(txnId) {
+    for (var i = 0; i < _adminPendingCache.length; i++) {
+      if (_adminPendingCache[i].TransactionId === txnId) return _adminPendingCache[i];
+    }
+    return null;
+  }
+
+  function approveTxn(button, txnId) {
+    var txn = findPendingTxn_(txnId);
+    var detail = txn ? buildTransactionDetailText_(txn) : '';
+    var comment = window.prompt(detail + '\n\nApprove this transaction? Add an optional comment, or press Cancel to abort:', '');
+    if (comment === null) return; // user cancelled -- do not approve
+    callAuthed('approveTransaction', [txnId, comment], function () { loadPendingApprovals(); }, null, button);
+  }
+
+  function rejectTxn(button, txnId) {
+    var txn = findPendingTxn_(txnId);
+    var detail = txn ? buildTransactionDetailText_(txn) : '';
+    var reason = window.prompt(detail + '\n\nReject this transaction? Add an optional reason, or press Cancel to abort:', '');
+    if (reason === null) return; // user cancelled -- do not reject
+    callAuthed('rejectTransaction', [txnId, reason], function () { loadPendingApprovals(); }, null, button);
   }
 
   function loadKidsOverview() {
@@ -145,7 +176,7 @@
             order: kid.userId,
             html: '<tr><td>' + escapeHtml(kid.displayName) + '</td><td>' + formatMoney(summary.savings.cashBalance) +
               '</td><td>' + formatMoney(summary.holdingsValue) + '</td><td>' + formatMoney(summary.netWorth) + '</td>' +
-              '<td><button class="secondary" onclick="promptResetPasscode(\'' + kid.userId + '\')">Reset code</button></td></tr>'
+              '<td><button class="secondary" onclick="promptResetPasscode(this, \'' + kid.userId + '\')">Reset code</button></td></tr>'
           });
           remaining--;
           if (remaining === 0) {
@@ -156,12 +187,12 @@
     });
   }
 
-  function promptResetPasscode(userId) {
+  function promptResetPasscode(button, userId) {
     var newCode = window.prompt('New access code for this user:');
     if (!newCode) return;
     callAuthed('resetPasscode', [userId, newCode], function () {
       showError('Access code reset.');
-    });
+    }, null, button);
   }
 
   function loadRatesTab() {
@@ -178,23 +209,23 @@
     });
   }
 
-  function submitGlobalRate() {
+  function submitGlobalRate(button) {
     var rate = parseFloat(document.getElementById('admin-global-rate').value);
     var effectiveFrom = document.getElementById('admin-global-rate-date').value;
     if (isNaN(rate) || !effectiveFrom) { showError('Enter a rate and effective date.'); return; }
     callAuthed('setGlobalRate', [rate, effectiveFrom], function () {
       loadRatesTab();
       showError('Global rate updated.');
-    });
+    }, null, button);
   }
 
-  function submitRateOverride() {
+  function submitRateOverride(button) {
     var userId = document.getElementById('admin-override-user').value;
     var rateStr = document.getElementById('admin-override-rate').value;
     var rate = rateStr === '' ? null : parseFloat(rateStr);
     callAuthed('setUserRateOverride', [userId, rate], function () {
       showError('Override saved.');
-    });
+    }, null, button);
   }
 
   function loadUsersTab() {
@@ -204,17 +235,17 @@
         var toggleStatus = u.status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE';
         return '<tr><td>' + escapeHtml(u.username) + '</td><td>' + escapeHtml(u.displayName) + '</td><td>' +
           u.role + '</td><td>' + u.status + '</td><td>' +
-          '<button class="secondary" onclick="toggleUserStatus(\'' + u.userId + '\', \'' + toggleStatus + '\')">' + toggleLabel + '</button></td></tr>';
+          '<button class="secondary" onclick="toggleUserStatus(this, \'' + u.userId + '\', \'' + toggleStatus + '\')">' + toggleLabel + '</button></td></tr>';
       }).join('');
       document.getElementById('admin-users-rows').innerHTML = rows;
     });
   }
 
-  function toggleUserStatus(userId, newStatus) {
-    callAuthed('setUserStatus', [userId, newStatus], function () { loadUsersTab(); });
+  function toggleUserStatus(button, userId, newStatus) {
+    callAuthed('setUserStatus', [userId, newStatus], function () { loadUsersTab(); }, null, button);
   }
 
-  function submitCreateAccount() {
+  function submitCreateAccount(button) {
     var params = {
       username: document.getElementById('admin-new-username').value.trim(),
       displayName: document.getElementById('admin-new-displayname').value.trim(),
@@ -230,6 +261,6 @@
       });
       loadUsersTab();
       showError('Account created.');
-    });
+    }, null, button);
   }
 </script>

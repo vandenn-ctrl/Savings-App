@@ -126,7 +126,7 @@ function accrueInterestForAllSavings() {
           Amount: interest,
           Ticker: '', Quantity: '', PriceAtRequest: '', PriceAtApproval: '', RealizedGainLoss: '',
           RequestedAt: toIsoString(today),
-          ReviewedBy: 'system', ReviewedAt: toIsoString(today), RejectionReason: '',
+          ReviewedBy: 'system', ReviewedAt: toIsoString(today), ReviewNote: '',
           Notes: 'Daily interest accrual'
         });
       } else {

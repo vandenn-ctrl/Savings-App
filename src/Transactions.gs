@@ -19,7 +19,7 @@ function requestDeposit(token, amount, note) {
     Amount: roundMoney(amount),
     Ticker: '', Quantity: '', PriceAtRequest: '', PriceAtApproval: '', RealizedGainLoss: '',
     RequestedAt: toIsoString(nowDate()),
-    ReviewedBy: '', ReviewedAt: '', RejectionReason: '',
+    ReviewedBy: '', ReviewedAt: '', ReviewNote: '',
     Notes: note || ''
   });
 }
@@ -43,7 +43,7 @@ function requestWithdrawal(token, amount, note) {
     Amount: roundMoney(amount),
     Ticker: '', Quantity: '', PriceAtRequest: '', PriceAtApproval: '', RealizedGainLoss: '',
     RequestedAt: toIsoString(nowDate()),
-    ReviewedBy: '', ReviewedAt: '', RejectionReason: '',
+    ReviewedBy: '', ReviewedAt: '', ReviewNote: '',
     Notes: note || ''
   });
 }
@@ -75,7 +75,7 @@ function listPendingTransactions(token) {
  * Wrapped in a script lock, with a fresh re-read of Status inside the lock,
  * to guard against double-approval races (double-click, two open tabs, etc).
  */
-function approveTransaction(token, transactionId) {
+function approveTransaction(token, transactionId, note) {
   var admin = validateSession(token);
   requireAdmin_(admin);
 
@@ -89,7 +89,12 @@ function approveTransaction(token, transactionId) {
       throw new Error('This transaction was already ' + txn.Status.toLowerCase() + '.');
     }
 
-    var updates = { Status: TRANSACTION_STATUS.APPROVED, ReviewedBy: admin.UserId, ReviewedAt: toIsoString(nowDate()) };
+    var updates = {
+      Status: TRANSACTION_STATUS.APPROVED,
+      ReviewedBy: admin.UserId,
+      ReviewedAt: toIsoString(nowDate()),
+      ReviewNote: note || ''
+    };
 
     switch (txn.Type) {
       case TRANSACTION_TYPE.SAVINGS_DEPOSIT:
@@ -135,7 +140,7 @@ function rejectTransaction(token, transactionId, reason) {
       Status: TRANSACTION_STATUS.REJECTED,
       ReviewedBy: admin.UserId,
       ReviewedAt: toIsoString(nowDate()),
-      RejectionReason: reason || ''
+      ReviewNote: reason || ''
     });
     logAudit_(admin.UserId, 'REJECT_TRANSACTION', 'Transaction', transactionId, { reason: reason || '' });
     return { ok: true };

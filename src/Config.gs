@@ -24,7 +24,7 @@ var COLUMNS = {
   InterestConfig: ['ConfigId', 'GlobalAnnualRate', 'EffectiveFrom', 'EffectiveTo', 'SetBy', 'SetAt'],
   Transactions: ['TransactionId', 'UserId', 'AccountId', 'Type', 'Status', 'Amount', 'Ticker',
     'Quantity', 'PriceAtRequest', 'PriceAtApproval', 'RealizedGainLoss', 'RequestedAt',
-    'ReviewedBy', 'ReviewedAt', 'RejectionReason', 'Notes'],
+    'ReviewedBy', 'ReviewedAt', 'ReviewNote', 'Notes'],
   Holdings: ['HoldingId', 'UserId', 'AccountId', 'Ticker', 'AssetClass', 'Quantity', 'AvgCostBasis', 'LastUpdated'],
   // LivePrice holds the live =GOOGLEFINANCE(...) formula; LastPrice is the plain value
   // copied from it by refreshPrices(), which is what all application logic reads.
