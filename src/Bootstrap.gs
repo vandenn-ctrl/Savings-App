@@ -93,3 +93,29 @@ function createInitialAdmin() {
 
   Logger.log('Admin user "%s" created. Log in with the passcode you set in createInitialAdmin().', username);
 }
+
+/**
+ * Temporary diagnostic: dumps the raw Transactions sheet + Users list to the
+ * execution log, to check for header/column drift or UserId mismatches when
+ * transactions aren't showing up as expected in the UI. Safe to run anytime;
+ * read-only. Remove once the underlying issue is found.
+ */
+function debugDumpTransactions() {
+  var sheet = getSheet_(SHEETS.TRANSACTIONS);
+  Logger.log('Sheet name: %s, lastRow: %s, lastColumn: %s', sheet.getName(), sheet.getLastRow(), sheet.getLastColumn());
+
+  var headerRow = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  Logger.log('Header row (actual sheet): %s', JSON.stringify(headerRow));
+  Logger.log('Expected COLUMNS.Transactions: %s', JSON.stringify(COLUMNS[SHEETS.TRANSACTIONS]));
+
+  var rows = getAllRows(SHEETS.TRANSACTIONS);
+  Logger.log('Parsed transaction row count: %s', rows.length);
+  rows.forEach(function (row, i) {
+    Logger.log('Transaction row %s: %s', i, JSON.stringify(row));
+  });
+
+  var users = getAllRows(SHEETS.USERS);
+  Logger.log('Users: %s', JSON.stringify(users.map(function (u) {
+    return { UserId: u.UserId, Username: u.Username, Role: u.Role, Status: u.Status };
+  })));
+}
