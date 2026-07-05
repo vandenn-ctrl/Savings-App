@@ -1,0 +1,73 @@
+<div style="font-family: Arial, sans-serif; color: #1f2933; max-width: 600px; margin: 0 auto;">
+  <h2 style="color: #2f6f4f;">Family Savings Statement</h2>
+  <p><strong><?= displayName ?></strong> &mdash; <?= periodStart ?> to <?= periodEnd ?></p>
+
+  <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+    <tr>
+      <td style="padding: 8px 0; color: #52606d;">Savings balance</td>
+      <td style="padding: 8px 0; text-align: right; font-weight: bold;">$<?= savingsBalance.toFixed(2) ?></td>
+    </tr>
+    <tr>
+      <td style="padding: 8px 0; color: #52606d;">Interest earned this period</td>
+      <td style="padding: 8px 0; text-align: right;">$<?= interestEarned.toFixed(2) ?></td>
+    </tr>
+    <tr>
+      <td style="padding: 8px 0; color: #52606d;">Investments value</td>
+      <td style="padding: 8px 0; text-align: right; font-weight: bold;">$<?= holdingsValue.toFixed(2) ?></td>
+    </tr>
+    <tr>
+      <td style="padding: 8px 0; color: #52606d;">Realized gains/losses this period</td>
+      <td style="padding: 8px 0; text-align: right;">$<?= realizedGains.toFixed(2) ?></td>
+    </tr>
+    <tr>
+      <td style="padding: 8px 0; border-top: 2px solid #dde3e8; font-weight: bold;">Net worth</td>
+      <td style="padding: 8px 0; border-top: 2px solid #dde3e8; text-align: right; font-weight: bold;">$<?= netWorth.toFixed(2) ?></td>
+    </tr>
+  </table>
+
+  <? if (holdings.length > 0) { ?>
+    <h3>Holdings</h3>
+    <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+      <tr style="color: #52606d;">
+        <th style="text-align: left; padding: 4px;">Ticker</th>
+        <th style="text-align: right; padding: 4px;">Qty</th>
+        <th style="text-align: right; padding: 4px;">Price</th>
+        <th style="text-align: right; padding: 4px;">Value</th>
+        <th style="text-align: right; padding: 4px;">Gain/Loss</th>
+      </tr>
+      <? for (var i = 0; i < holdings.length; i++) { var h = holdings[i]; ?>
+        <tr>
+          <td style="padding: 4px; border-top: 1px solid #dde3e8;"><?= h.ticker ?></td>
+          <td style="padding: 4px; border-top: 1px solid #dde3e8; text-align: right;"><?= h.quantity ?></td>
+          <td style="padding: 4px; border-top: 1px solid #dde3e8; text-align: right;">$<?= h.currentPrice.toFixed(2) ?></td>
+          <td style="padding: 4px; border-top: 1px solid #dde3e8; text-align: right;">$<?= h.marketValue.toFixed(2) ?></td>
+          <td style="padding: 4px; border-top: 1px solid #dde3e8; text-align: right;">$<?= h.unrealizedGainLoss.toFixed(2) ?></td>
+        </tr>
+      <? } ?>
+    </table>
+  <? } ?>
+
+  <h3>Transactions this period</h3>
+  <? if (transactions.length === 0) { ?>
+    <p style="color: #52606d;">No approved transactions in this period.</p>
+  <? } else { ?>
+    <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+      <tr style="color: #52606d;">
+        <th style="text-align: left; padding: 4px;">Date</th>
+        <th style="text-align: left; padding: 4px;">Type</th>
+        <th style="text-align: right; padding: 4px;">Amount</th>
+      </tr>
+      <? for (var j = 0; j < transactions.length; j++) { var t = transactions[j]; ?>
+        <tr>
+          <td style="padding: 4px; border-top: 1px solid #dde3e8;"><?= t.RequestedAt ?></td>
+          <td style="padding: 4px; border-top: 1px solid #dde3e8;"><?= t.Type ?><? if (t.Ticker) { ?> (<?= t.Ticker ?> x <?= t.Quantity ?>)<? } ?></td>
+          <td style="padding: 4px; border-top: 1px solid #dde3e8; text-align: right;">$<?= Number(t.Amount).toFixed(2) ?></td>
+        </tr>
+      <? } ?>
+    </table>
+  <? } ?>
+
+  <p style="color: #52606d; font-size: 12px; margin-top: 24px;">
+    Log in to the Family Savings app to view full details or change how often you receive statements.
+  </p>
+</div>

@@ -1,0 +1,197 @@
+<div id="view-kid" class="app-shell hidden">
+  <div class="tabs">
+    <button id="kid-tab-btn-overview" class="active" onclick="kidShowTab('overview')">Overview</button>
+    <button id="kid-tab-btn-invest" onclick="kidShowTab('invest')">Investments</button>
+    <button id="kid-tab-btn-history" onclick="kidShowTab('history')">History</button>
+    <button id="kid-tab-btn-settings" onclick="kidShowTab('settings')">Settings</button>
+  </div>
+
+  <div id="kid-tab-overview">
+    <div class="card">
+      <h2>Overview</h2>
+      <div class="stat-row">
+        <div class="stat-tile">
+          <div class="label">Savings balance</div>
+          <div class="value" id="kid-savings-balance">$0.00</div>
+        </div>
+        <div class="stat-tile">
+          <div class="label">Accrued interest (today)</div>
+          <div class="value" id="kid-accrued-interest">$0.00</div>
+        </div>
+        <div class="stat-tile">
+          <div class="label">Investments value</div>
+          <div class="value" id="kid-holdings-value">$0.00</div>
+        </div>
+        <div class="stat-tile">
+          <div class="label">Net worth</div>
+          <div class="value" id="kid-net-worth">$0.00</div>
+        </div>
+      </div>
+      <p class="muted">Current savings rate: <span id="kid-rate">--</span>% APY</p>
+    </div>
+
+    <div class="card">
+      <h3>Request a savings transaction</h3>
+      <div class="row">
+        <div>
+          <label for="kid-txn-amount">Amount</label>
+          <input id="kid-txn-amount" type="number" min="0.01" step="0.01" />
+        </div>
+        <div>
+          <label for="kid-txn-note">Note (optional)</label>
+          <input id="kid-txn-note" type="text" />
+        </div>
+      </div>
+      <button onclick="submitSavingsRequest('SAVINGS_DEPOSIT')">Request deposit</button>
+      <button class="secondary" onclick="submitSavingsRequest('SAVINGS_WITHDRAWAL')">Request withdrawal</button>
+      <p class="muted">Deposits and withdrawals need your parent's approval before they affect your balance.</p>
+    </div>
+  </div>
+
+  <div id="kid-tab-invest" class="hidden">
+    <div class="card">
+      <h3>Holdings</h3>
+      <table>
+        <thead><tr><th>Ticker</th><th>Qty</th><th>Avg cost</th><th>Price</th><th>Value</th><th>Gain/Loss</th></tr></thead>
+        <tbody id="kid-holdings-rows"></tbody>
+      </table>
+    </div>
+    <div class="card">
+      <h3>Buy or sell</h3>
+      <div class="row">
+        <div>
+          <label for="kid-invest-ticker">Ticker</label>
+          <input id="kid-invest-ticker" type="text" placeholder="e.g. AAPL, BTC-USD" />
+        </div>
+        <div>
+          <label for="kid-invest-qty">Quantity</label>
+          <input id="kid-invest-qty" type="number" min="0.0001" step="0.0001" />
+        </div>
+      </div>
+      <button onclick="submitInvestRequest('INVEST_BUY')">Request buy</button>
+      <button class="secondary" onclick="submitInvestRequest('INVEST_SELL')">Request sell</button>
+      <p class="muted">Buys draw from your savings balance once approved; sell proceeds are credited back to savings.</p>
+    </div>
+  </div>
+
+  <div id="kid-tab-history" class="hidden">
+    <div class="card">
+      <h3>My transactions</h3>
+      <table>
+        <thead><tr><th>Date</th><th>Type</th><th>Details</th><th>Status</th></tr></thead>
+        <tbody id="kid-history-rows"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="kid-tab-settings" class="hidden">
+    <div class="card">
+      <h3>Statement delivery</h3>
+      <label for="kid-statement-freq">Frequency</label>
+      <select id="kid-statement-freq">
+        <option value="NONE">None</option>
+        <option value="WEEKLY">Weekly</option>
+        <option value="MONTHLY">Monthly</option>
+      </select>
+      <label for="kid-statement-day">Day (1-7 for weekly, 1-28 for monthly)</label>
+      <input id="kid-statement-day" type="number" min="1" max="28" />
+      <button onclick="saveStatementPreference()">Save preference</button>
+    </div>
+    <div class="card">
+      <h3>Change access code</h3>
+      <label for="kid-old-passcode">Current access code</label>
+      <input id="kid-old-passcode" type="password" />
+      <label for="kid-new-passcode">New access code</label>
+      <input id="kid-new-passcode" type="password" />
+      <button onclick="changeMyPasscode()">Update access code</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  var _kidDashboardCache = null;
+
+  function kidShowTab(name) {
+    ['overview', 'invest', 'history', 'settings'].forEach(function (t) {
+      document.getElementById('kid-tab-' + t).classList.toggle('hidden', t !== name);
+      document.getElementById('kid-tab-btn-' + (t === 'invest' ? 'invest' : t)).classList.toggle('active', t === name);
+    });
+    if (name === 'history') loadKidHistory();
+  }
+
+  function loadKidDashboard() {
+    callAuthed('getMyDashboard', [], function (summary) {
+      _kidDashboardCache = summary;
+      document.getElementById('kid-savings-balance').textContent = formatMoney(summary.savings.cashBalance);
+      document.getElementById('kid-accrued-interest').textContent = formatMoney(summary.savings.accruedInterestToday);
+      document.getElementById('kid-holdings-value').textContent = formatMoney(summary.holdingsValue);
+      document.getElementById('kid-net-worth').textContent = formatMoney(summary.netWorth);
+      document.getElementById('kid-rate').textContent = (summary.savings.annualRate * 100).toFixed(2);
+      document.getElementById('kid-statement-freq').value = summary.statementFrequency || 'NONE';
+      document.getElementById('kid-statement-day').value = summary.statementDay || '';
+
+      var rows = summary.holdings.map(function (h) {
+        return '<tr><td>' + escapeHtml(h.ticker) + '</td><td>' + h.quantity + '</td><td>' +
+          formatMoney(h.avgCostBasis) + '</td><td>' + formatMoney(h.currentPrice) + '</td><td>' +
+          formatMoney(h.marketValue) + '</td><td>' + formatMoney(h.unrealizedGainLoss) + '</td></tr>';
+      }).join('');
+      document.getElementById('kid-holdings-rows').innerHTML = rows || '<tr><td colspan="6" class="muted">No holdings yet.</td></tr>';
+    });
+  }
+
+  function loadKidHistory() {
+    callAuthed('listMyTransactions', [], function (transactions) {
+      var rows = transactions.map(function (t) {
+        var details = t.Ticker ? (t.Ticker + ' x ' + t.Quantity) : formatMoney(t.Amount);
+        return '<tr><td>' + escapeHtml(t.RequestedAt) + '</td><td>' + escapeHtml(t.Type) + '</td><td>' +
+          escapeHtml(details) + '</td><td><span class="badge badge-' + t.Status + '">' + t.Status + '</span></td></tr>';
+      }).join('');
+      document.getElementById('kid-history-rows').innerHTML = rows || '<tr><td colspan="4" class="muted">No transactions yet.</td></tr>';
+    });
+  }
+
+  function submitSavingsRequest(type) {
+    var amount = parseFloat(document.getElementById('kid-txn-amount').value);
+    var note = document.getElementById('kid-txn-note').value;
+    if (!amount || amount <= 0) { showError('Enter a valid amount.'); return; }
+
+    var fnName = type === 'SAVINGS_DEPOSIT' ? 'requestDeposit' : 'requestWithdrawal';
+    callAuthed(fnName, [amount, note], function () {
+      document.getElementById('kid-txn-amount').value = '';
+      document.getElementById('kid-txn-note').value = '';
+      loadKidDashboard();
+    });
+  }
+
+  function submitInvestRequest(type) {
+    var ticker = document.getElementById('kid-invest-ticker').value.trim().toUpperCase();
+    var qty = parseFloat(document.getElementById('kid-invest-qty').value);
+    if (!ticker || !qty || qty <= 0) { showError('Enter a ticker and quantity.'); return; }
+
+    var fnName = type === 'INVEST_BUY' ? 'requestBuy' : 'requestSell';
+    callAuthed(fnName, [ticker, qty], function () {
+      document.getElementById('kid-invest-ticker').value = '';
+      document.getElementById('kid-invest-qty').value = '';
+      loadKidDashboard();
+    });
+  }
+
+  function saveStatementPreference() {
+    var freq = document.getElementById('kid-statement-freq').value;
+    var day = parseInt(document.getElementById('kid-statement-day').value, 10) || '';
+    callAuthed('setStatementPreference', [freq, day], function () {
+      showError('Preference saved.');
+    });
+  }
+
+  function changeMyPasscode() {
+    var oldCode = document.getElementById('kid-old-passcode').value;
+    var newCode = document.getElementById('kid-new-passcode').value;
+    if (!oldCode || !newCode) { showError('Enter both current and new access code.'); return; }
+    callAuthed('changePasscode', [oldCode, newCode], function () {
+      document.getElementById('kid-old-passcode').value = '';
+      document.getElementById('kid-new-passcode').value = '';
+      showError('Access code updated.');
+    });
+  }
+</script>

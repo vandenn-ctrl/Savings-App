@@ -1,0 +1,78 @@
+<script>
+  // --- Session storage helpers -----------------------------------------
+  function getToken() { return localStorage.getItem('fs_token'); }
+  function getRole() { return localStorage.getItem('fs_role'); }
+  function getDisplayName() { return localStorage.getItem('fs_displayName'); }
+
+  function setSession(session) {
+    localStorage.setItem('fs_token', session.token);
+    localStorage.setItem('fs_role', session.role);
+    localStorage.setItem('fs_displayName', session.displayName);
+  }
+
+  function clearSession() {
+    localStorage.removeItem('fs_token');
+    localStorage.removeItem('fs_role');
+    localStorage.removeItem('fs_displayName');
+  }
+
+  // --- Error banner -------------------------------------------------------
+  function showError(message) {
+    var el = document.getElementById('global-error-banner');
+    if (!el) { console.error(message); return; }
+    el.textContent = message;
+    el.style.display = 'block';
+  }
+
+  function hideError() {
+    var el = document.getElementById('global-error-banner');
+    if (el) el.style.display = 'none';
+  }
+
+  // --- google.script.run wrappers -----------------------------------------
+  /**
+   * Calls a server function that does NOT require a session token
+   * (e.g. login). args is an array of positional arguments.
+   */
+  function callPublic(fnName, args, onSuccess, onError) {
+    google.script.run
+      .withSuccessHandler(function (result) { hideError(); if (onSuccess) onSuccess(result); })
+      .withFailureHandler(function (err) {
+        var msg = (err && err.message) ? err.message : String(err);
+        showError(msg);
+        if (onError) onError(err);
+      })[fnName].apply(null, args || []);
+  }
+
+  /**
+   * Calls a server function whose first parameter is the session token.
+   * Automatically redirects to the login view on an expired/invalid session.
+   */
+  function callAuthed(fnName, args, onSuccess, onError) {
+    var token = getToken();
+    var fullArgs = [token].concat(args || []);
+    google.script.run
+      .withSuccessHandler(function (result) { hideError(); if (onSuccess) onSuccess(result); })
+      .withFailureHandler(function (err) {
+        var msg = (err && err.message) ? err.message : String(err);
+        if (msg.indexOf('Session expired') !== -1 || msg.indexOf('Not logged in') !== -1 ||
+            msg.indexOf('Account not found or disabled') !== -1) {
+          clearSession();
+          if (typeof showLoginView === 'function') showLoginView();
+        }
+        showError(msg);
+        if (onError) onError(err);
+      })[fnName].apply(null, fullArgs);
+  }
+
+  function formatMoney(amount) {
+    var n = Number(amount || 0);
+    return '$' + n.toFixed(2);
+  }
+
+  function escapeHtml(str) {
+    return String(str == null ? '' : str).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+</script>

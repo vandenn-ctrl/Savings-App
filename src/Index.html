@@ -1,0 +1,72 @@
+<!doctype html>
+<html>
+<head>
+  <base target="_top">
+  <?!= include('Shared_CSS'); ?>
+</head>
+<body>
+  <div class="app-shell">
+    <div id="global-error-banner" class="error-banner"></div>
+    <div id="top-bar" class="row hidden" style="align-items:center; margin-bottom: 12px;">
+      <div style="flex: 2;">
+        <strong>Family Savings</strong>
+        <span class="muted" id="top-bar-name"></span>
+      </div>
+      <div style="flex: 0 0 auto;">
+        <button class="secondary" onclick="handleLogout()">Log out</button>
+      </div>
+    </div>
+  </div>
+
+  <?!= include('Login'); ?>
+  <?!= include('KidDashboard'); ?>
+  <?!= include('AdminDashboard'); ?>
+
+  <?!= include('Shared_JS'); ?>
+  <script>
+    function hideAllViews() {
+      ['view-login', 'view-kid', 'view-admin'].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) el.classList.add('hidden');
+      });
+    }
+
+    function routeToDashboard() {
+      var token = getToken();
+      var role = getRole();
+      var topBar = document.getElementById('top-bar');
+
+      if (!token) {
+        topBar.classList.add('hidden');
+        showLoginView();
+        return;
+      }
+
+      topBar.classList.remove('hidden');
+      document.getElementById('top-bar-name').textContent = ' — ' + (getDisplayName() || '');
+
+      hideAllViews();
+      if (role === 'ADMIN') {
+        document.getElementById('view-admin').classList.remove('hidden');
+        if (typeof loadAdminDashboard === 'function') loadAdminDashboard();
+      } else {
+        document.getElementById('view-kid').classList.remove('hidden');
+        if (typeof loadKidDashboard === 'function') loadKidDashboard();
+      }
+    }
+
+    function handleLogout() {
+      callAuthed('logout', [], function () {
+        clearSession();
+        routeToDashboard();
+      }, function () {
+        // Even if the server call fails (e.g. already-expired session), clear locally.
+        clearSession();
+        routeToDashboard();
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', routeToDashboard);
+  </script>
+</body>
+</html>

@@ -1,0 +1,36 @@
+<div id="view-login" class="app-shell hidden">
+  <div class="card" style="max-width: 360px; margin: 60px auto;">
+    <h2>Family Savings</h2>
+    <p class="muted">Enter your username and access code to continue.</p>
+    <label for="login-username">Username</label>
+    <input id="login-username" type="text" autocomplete="username" />
+    <label for="login-passcode">Access code</label>
+    <input id="login-passcode" type="password" inputmode="numeric" autocomplete="current-password" />
+    <button id="login-submit" onclick="handleLogin()">Log in</button>
+  </div>
+</div>
+
+<script>
+  function handleLogin() {
+    var username = document.getElementById('login-username').value.trim();
+    var passcode = document.getElementById('login-passcode').value;
+    if (!username || !passcode) { showError('Enter a username and access code.'); return; }
+
+    var btn = document.getElementById('login-submit');
+    btn.disabled = true;
+
+    callPublic('login', [username, passcode], function (session) {
+      btn.disabled = false;
+      setSession(session);
+      document.getElementById('login-passcode').value = '';
+      routeToDashboard();
+    }, function () {
+      btn.disabled = false;
+    });
+  }
+
+  function showLoginView() {
+    hideAllViews();
+    document.getElementById('view-login').classList.remove('hidden');
+  }
+</script>
