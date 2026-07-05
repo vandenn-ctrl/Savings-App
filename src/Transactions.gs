@@ -149,6 +149,127 @@ function rejectTransaction(token, transactionId, reason) {
   }
 }
 
+/**
+ * Admin-only: records a savings deposit/withdrawal directly on a kid's
+ * behalf and applies it immediately -- there's no separate approval step
+ * since the admin is the one entering it.
+ */
+function adminRecordSavingsTransaction(token, targetUserId, type, amount, note) {
+  var admin = validateSession(token);
+  requireAdmin_(admin);
+  if (type !== TRANSACTION_TYPE.SAVINGS_DEPOSIT && type !== TRANSACTION_TYPE.SAVINGS_WITHDRAWAL) {
+    throw new Error('Invalid transaction type.');
+  }
+  amount = Number(amount);
+  if (!amount || amount <= 0) throw new Error('Enter a valid amount.');
+
+  var lock = LockService.getScriptLock();
+  lock.waitLock(CONFIG.LOCK_WAIT_MS);
+  try {
+    // Validated inside the lock, immediately before writing the (already-APPROVED)
+    // row, so we never persist a row whose balance effect then fails to apply.
+    var savings = getAccountForUser_(targetUserId, ACCOUNT_TYPE.SAVINGS);
+    if (type === TRANSACTION_TYPE.SAVINGS_WITHDRAWAL && amount > Number(savings.CashBalance)) {
+      throw new Error('Withdrawal amount exceeds current savings balance.');
+    }
+
+    var txn = appendRow(SHEETS.TRANSACTIONS, {
+      TransactionId: newId('txn'),
+      UserId: targetUserId,
+      AccountId: savings.AccountId,
+      Type: type,
+      Status: TRANSACTION_STATUS.APPROVED,
+      Amount: roundMoney(amount),
+      Ticker: '', Quantity: '', PriceAtRequest: '', PriceAtApproval: '', RealizedGainLoss: '',
+      RequestedAt: toIsoString(nowDate()),
+      ReviewedBy: admin.UserId, ReviewedAt: toIsoString(nowDate()), ReviewNote: note || '',
+      Notes: 'Entered directly by parent'
+    });
+
+    if (type === TRANSACTION_TYPE.SAVINGS_DEPOSIT) {
+      applyApprovedDeposit_(txn);
+    } else {
+      applyApprovedWithdrawal_(txn);
+    }
+
+    logAudit_(admin.UserId, 'ADMIN_RECORD_TRANSACTION', 'Transaction', txn.TransactionId, { type: type, targetUserId: targetUserId });
+    return { ok: true };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
+ * Admin-only: records an investment buy/sell directly on a kid's behalf and
+ * applies it immediately, same rationale as adminRecordSavingsTransaction.
+ */
+function adminRecordInvestmentTransaction(token, targetUserId, type, ticker, quantity, note) {
+  var admin = validateSession(token);
+  requireAdmin_(admin);
+  if (type !== TRANSACTION_TYPE.INVEST_BUY && type !== TRANSACTION_TYPE.INVEST_SELL) {
+    throw new Error('Invalid transaction type.');
+  }
+  ticker = String(ticker || '').trim().toUpperCase();
+  quantity = Number(quantity);
+  if (!ticker || !quantity || quantity <= 0) throw new Error('Enter a ticker and quantity.');
+
+  var lock = LockService.getScriptLock();
+  lock.waitLock(CONFIG.LOCK_WAIT_MS);
+  try {
+    ensureTickerTracked_(ticker);
+    var quote = getQuote_(ticker);
+    var investment = getAccountForUser_(targetUserId, ACCOUNT_TYPE.INVESTMENT);
+
+    // Validated inside the lock, immediately before writing the (already-APPROVED)
+    // row, so we never persist a row whose balance/holdings effect then fails to apply.
+    if (type === TRANSACTION_TYPE.INVEST_BUY) {
+      var savingsForBuy = getAccountForUser_(targetUserId, ACCOUNT_TYPE.SAVINGS);
+      var cost = roundMoney(quantity * quote.price);
+      if (cost > Number(savingsForBuy.CashBalance)) {
+        throw new Error('This purchase (' + formatCurrency(cost) + ') exceeds the kid\'s savings balance.');
+      }
+    } else {
+      var holding = findOneWhere(SHEETS.HOLDINGS, function (h) { return h.UserId === targetUserId && h.Ticker === ticker; });
+      if (!holding || Number(holding.Quantity) < quantity) {
+        throw new Error('This kid does not hold enough ' + ticker + ' to sell that quantity.');
+      }
+    }
+
+    var txn = appendRow(SHEETS.TRANSACTIONS, {
+      TransactionId: newId('txn'),
+      UserId: targetUserId,
+      AccountId: investment.AccountId,
+      Type: type,
+      Status: TRANSACTION_STATUS.APPROVED,
+      Amount: roundMoney(quantity * quote.price),
+      Ticker: ticker,
+      Quantity: quantity,
+      PriceAtRequest: quote.price,
+      PriceAtApproval: '', RealizedGainLoss: '',
+      RequestedAt: toIsoString(nowDate()),
+      ReviewedBy: admin.UserId, ReviewedAt: toIsoString(nowDate()), ReviewNote: note || '',
+      Notes: 'Entered directly by parent'
+    });
+
+    var updates = {};
+    if (type === TRANSACTION_TYPE.INVEST_BUY) {
+      updates.PriceAtApproval = applyApprovedBuy_(txn);
+    } else {
+      var sellResult = applyApprovedSell_(txn);
+      updates.PriceAtApproval = sellResult.priceAtApproval;
+      updates.RealizedGainLoss = sellResult.realizedGainLoss;
+    }
+
+    var rowRef = findRowById(SHEETS.TRANSACTIONS, 'TransactionId', txn.TransactionId);
+    updateRowByIndex(SHEETS.TRANSACTIONS, rowRef.rowIndex, updates);
+
+    logAudit_(admin.UserId, 'ADMIN_RECORD_TRANSACTION', 'Transaction', txn.TransactionId, { type: type, targetUserId: targetUserId });
+    return { ok: true };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 function applyApprovedDeposit_(txn) {
   var account = findRowById(SHEETS.ACCOUNTS, 'AccountId', txn.AccountId);
   if (!account) throw new Error('Account not found for deposit.');

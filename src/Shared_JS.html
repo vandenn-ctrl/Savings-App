@@ -97,6 +97,103 @@
       })[fnName].apply(null, fullArgs);
   }
 
+  // --- In-page modal (replaces window.prompt/confirm) ----------------------
+  var _modalResolve = null;
+  var _modalFieldKeys = [];
+
+  /**
+   * Shows the shared modal and resolves a Promise with { confirmed, values }
+   * once the user clicks Confirm or Cancel. values is keyed by each field's
+   * "key". options: { title, bodyText, confirmLabel, fields: [{
+   *   key, label, type ('text'/'number'/'password'/'select'), placeholder,
+   *   options: [{value,label}] (for type:'select'),
+   *   showWhen: {key, values} -- only visible when that other field's
+   *             current value is in `values` (used for the type-dependent
+   *             fields in the admin "enter transaction" form)
+   * }] }
+   */
+  function showModal(options) {
+    return new Promise(function (resolve) {
+      document.getElementById('modal-title').textContent = options.title || '';
+
+      var bodyEl = document.getElementById('modal-body');
+      if (options.bodyText) {
+        bodyEl.textContent = options.bodyText;
+        bodyEl.classList.remove('hidden');
+      } else {
+        bodyEl.classList.add('hidden');
+      }
+
+      var fields = options.fields || [];
+      _modalFieldKeys = fields.map(function (f) { return f.key; });
+
+      document.getElementById('modal-fields').innerHTML = fields.map(function (f) {
+        var label = '<label for="modal-field-' + f.key + '">' + escapeHtml(f.label) + '</label>';
+        var control;
+        if (f.type === 'select') {
+          var opts = (f.options || []).map(function (o) {
+            return '<option value="' + escapeHtml(o.value) + '">' + escapeHtml(o.label) + '</option>';
+          }).join('');
+          control = '<select id="modal-field-' + f.key + '">' + opts + '</select>';
+        } else {
+          control = '<input id="modal-field-' + f.key + '" type="' + (f.type || 'text') + '" placeholder="' + escapeHtml(f.placeholder || '') + '" />';
+        }
+        return '<div id="modal-field-wrap-' + f.key + '">' + label + control + '</div>';
+      }).join('');
+
+      document.getElementById('modal-confirm-btn').textContent = options.confirmLabel || 'Confirm';
+      document.getElementById('modal-overlay').classList.remove('hidden');
+
+      function applyVisibility() {
+        fields.forEach(function (f) {
+          if (!f.showWhen) return;
+          var controllerEl = document.getElementById('modal-field-' + f.showWhen.key);
+          var visible = controllerEl && f.showWhen.values.indexOf(controllerEl.value) !== -1;
+          document.getElementById('modal-field-wrap-' + f.key).classList.toggle('hidden', !visible);
+        });
+      }
+
+      fields.forEach(function (f) {
+        if (f.type === 'select') {
+          document.getElementById('modal-field-' + f.key).addEventListener('change', applyVisibility);
+        }
+      });
+      applyVisibility();
+
+      if (fields.length > 0) {
+        setTimeout(function () {
+          var el = document.getElementById('modal-field-' + fields[0].key);
+          if (el) el.focus();
+        }, 50);
+      }
+
+      _modalResolve = resolve;
+    });
+  }
+
+  function modalConfirm_() {
+    var values = {};
+    _modalFieldKeys.forEach(function (key) {
+      var el = document.getElementById('modal-field-' + key);
+      values[key] = el ? el.value : '';
+    });
+    document.getElementById('modal-overlay').classList.add('hidden');
+    if (_modalResolve) {
+      var resolve = _modalResolve;
+      _modalResolve = null;
+      resolve({ confirmed: true, values: values });
+    }
+  }
+
+  function modalCancel_() {
+    document.getElementById('modal-overlay').classList.add('hidden');
+    if (_modalResolve) {
+      var resolve = _modalResolve;
+      _modalResolve = null;
+      resolve({ confirmed: false, values: {} });
+    }
+  }
+
   function formatMoney(amount) {
     var n = Number(amount || 0);
     return '$' + n.toFixed(2);

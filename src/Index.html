@@ -13,7 +13,20 @@
         <span class="muted" id="top-bar-name"></span>
       </div>
       <div style="flex: 0 0 auto;">
+        <button class="secondary hidden" id="btn-switch-parent" onclick="handleSwitchToParentMode(this)">Switch to Parent Mode</button>
         <button class="secondary" onclick="handleLogout(this)">Log out</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-overlay" class="modal-overlay hidden">
+    <div class="modal-card">
+      <h3 id="modal-title"></h3>
+      <div id="modal-body" class="modal-body hidden"></div>
+      <div id="modal-fields"></div>
+      <div class="modal-actions">
+        <button class="secondary" onclick="modalCancel_()">Cancel</button>
+        <button id="modal-confirm-btn" onclick="modalConfirm_()">Confirm</button>
       </div>
     </div>
   </div>
@@ -44,6 +57,7 @@
 
       topBar.classList.remove('hidden');
       document.getElementById('top-bar-name').textContent = ' — ' + (getDisplayName() || '');
+      document.getElementById('btn-switch-parent').classList.toggle('hidden', role === 'ADMIN');
 
       hideAllViews();
       if (role === 'ADMIN') {
@@ -53,6 +67,30 @@
         document.getElementById('view-kid').classList.remove('hidden');
         if (typeof loadKidDashboard === 'function') loadKidDashboard();
       }
+    }
+
+    function handleSwitchToParentMode(button) {
+      showModal({
+        title: 'Switch to Parent Mode',
+        bodyText: 'Enter a parent/admin username and access code.',
+        fields: [
+          { key: 'username', label: 'Parent username', type: 'text' },
+          { key: 'passcode', label: 'Parent access code', type: 'password' }
+        ],
+        confirmLabel: 'Switch'
+      }).then(function (result) {
+        if (!result.confirmed) return;
+        if (!result.values.username || !result.values.passcode) { showError('Enter both fields.'); return; }
+
+        callPublic('login', [result.values.username, result.values.passcode], function (session) {
+          if (session.role !== 'ADMIN') {
+            showError('That account is not a parent/admin account.');
+            return;
+          }
+          setSession(session);
+          routeToDashboard();
+        }, null, button);
+      });
     }
 
     function handleLogout(button) {

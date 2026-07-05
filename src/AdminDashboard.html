@@ -146,18 +146,28 @@
 
   function approveTxn(button, txnId) {
     var txn = findPendingTxn_(txnId);
-    var detail = txn ? buildTransactionDetailText_(txn) : '';
-    var comment = window.prompt(detail + '\n\nApprove this transaction? Add an optional comment, or press Cancel to abort:', '');
-    if (comment === null) return; // user cancelled -- do not approve
-    callAuthed('approveTransaction', [txnId, comment], function () { loadPendingApprovals(); }, null, button);
+    showModal({
+      title: 'Approve transaction',
+      bodyText: txn ? buildTransactionDetailText_(txn) : '',
+      fields: [{ key: 'comment', label: 'Optional comment' }],
+      confirmLabel: 'Approve'
+    }).then(function (result) {
+      if (!result.confirmed) return;
+      callAuthed('approveTransaction', [txnId, result.values.comment], function () { loadPendingApprovals(); }, null, button);
+    });
   }
 
   function rejectTxn(button, txnId) {
     var txn = findPendingTxn_(txnId);
-    var detail = txn ? buildTransactionDetailText_(txn) : '';
-    var reason = window.prompt(detail + '\n\nReject this transaction? Add an optional reason, or press Cancel to abort:', '');
-    if (reason === null) return; // user cancelled -- do not reject
-    callAuthed('rejectTransaction', [txnId, reason], function () { loadPendingApprovals(); }, null, button);
+    showModal({
+      title: 'Reject transaction',
+      bodyText: txn ? buildTransactionDetailText_(txn) : '',
+      fields: [{ key: 'reason', label: 'Optional reason' }],
+      confirmLabel: 'Reject'
+    }).then(function (result) {
+      if (!result.confirmed) return;
+      callAuthed('rejectTransaction', [txnId, result.values.reason], function () { loadPendingApprovals(); }, null, button);
+    });
   }
 
   function loadKidsOverview() {
@@ -176,7 +186,8 @@
             order: kid.userId,
             html: '<tr><td>' + escapeHtml(kid.displayName) + '</td><td>' + formatMoney(summary.savings.cashBalance) +
               '</td><td>' + formatMoney(summary.holdingsValue) + '</td><td>' + formatMoney(summary.netWorth) + '</td>' +
-              '<td><button class="secondary" onclick="promptResetPasscode(this, \'' + kid.userId + '\')">Reset code</button></td></tr>'
+              '<td><button onclick="adminEnterTransaction(this, \'' + kid.userId + '\', \'' + escapeHtml(kid.displayName) + '\')">Enter transaction</button> ' +
+              '<button class="secondary" onclick="promptResetPasscode(this, \'' + kid.userId + '\')">Reset code</button></td></tr>'
           });
           remaining--;
           if (remaining === 0) {
@@ -187,12 +198,57 @@
     });
   }
 
+  /** Admin enters a transaction directly on a kid's behalf -- auto-approved, no separate review needed. */
+  function adminEnterTransaction(button, userId, displayName) {
+    showModal({
+      title: 'Enter transaction for ' + displayName,
+      bodyText: 'This is recorded as already approved -- it takes effect immediately.',
+      fields: [
+        {
+          key: 'type', label: 'Type', type: 'select', options: [
+            { value: 'SAVINGS_DEPOSIT', label: 'Savings deposit' },
+            { value: 'SAVINGS_WITHDRAWAL', label: 'Savings withdrawal' },
+            { value: 'INVEST_BUY', label: 'Investment buy' },
+            { value: 'INVEST_SELL', label: 'Investment sell' }
+          ]
+        },
+        { key: 'amount', label: 'Amount', type: 'number', showWhen: { key: 'type', values: ['SAVINGS_DEPOSIT', 'SAVINGS_WITHDRAWAL'] } },
+        { key: 'ticker', label: 'Ticker', showWhen: { key: 'type', values: ['INVEST_BUY', 'INVEST_SELL'] } },
+        { key: 'quantity', label: 'Quantity', type: 'number', showWhen: { key: 'type', values: ['INVEST_BUY', 'INVEST_SELL'] } },
+        { key: 'note', label: 'Optional note' }
+      ],
+      confirmLabel: 'Enter transaction'
+    }).then(function (result) {
+      if (!result.confirmed) return;
+      var v = result.values;
+
+      if (v.type === 'SAVINGS_DEPOSIT' || v.type === 'SAVINGS_WITHDRAWAL') {
+        if (!v.amount || Number(v.amount) <= 0) { showError('Enter a valid amount.'); return; }
+        callAuthed('adminRecordSavingsTransaction', [userId, v.type, parseFloat(v.amount), v.note], function () {
+          showError('Transaction recorded.');
+          loadKidsOverview();
+        }, null, button);
+      } else {
+        if (!v.ticker || !v.quantity || Number(v.quantity) <= 0) { showError('Enter a ticker and quantity.'); return; }
+        callAuthed('adminRecordInvestmentTransaction', [userId, v.type, v.ticker, parseFloat(v.quantity), v.note], function () {
+          showError('Transaction recorded.');
+          loadKidsOverview();
+        }, null, button);
+      }
+    });
+  }
+
   function promptResetPasscode(button, userId) {
-    var newCode = window.prompt('New access code for this user:');
-    if (!newCode) return;
-    callAuthed('resetPasscode', [userId, newCode], function () {
-      showError('Access code reset.');
-    }, null, button);
+    showModal({
+      title: 'Reset access code',
+      fields: [{ key: 'newCode', label: 'New access code for this user' }],
+      confirmLabel: 'Reset'
+    }).then(function (result) {
+      if (!result.confirmed || !result.values.newCode) return;
+      callAuthed('resetPasscode', [userId, result.values.newCode], function () {
+        showError('Access code reset.');
+      }, null, button);
+    });
   }
 
   function loadRatesTab() {
