@@ -72,6 +72,13 @@ function safeInvoke(fn) {
   }
 }
 
+/** Server-side HTML escaping for text embedded in generated email bodies. */
+function escapeHtmlServer_(str) {
+  return String(str == null ? '' : str).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+
 /** Appends a row to AuditLog. details is a plain object, stored as a JSON string. */
 function logAudit_(actorUserId, action, targetType, targetId, details) {
   appendRow(SHEETS.AUDIT_LOG, {

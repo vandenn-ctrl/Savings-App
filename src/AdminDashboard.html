@@ -5,6 +5,7 @@
     <button id="admin-tab-btn-kids" onclick="adminShowTab('kids')">Kids</button>
     <button id="admin-tab-btn-rates" onclick="adminShowTab('rates')">Rates</button>
     <button id="admin-tab-btn-users" onclick="adminShowTab('users')">Users</button>
+    <button id="admin-tab-btn-communication" onclick="adminShowTab('communication')">Communication</button>
   </div>
 
   <div id="admin-tab-overview">
@@ -115,6 +116,35 @@
       </table>
     </div>
   </div>
+
+  <div id="admin-tab-communication" class="hidden">
+    <div class="card">
+      <h2>Send an email</h2>
+      <label for="comm-target-user">About which family member? (fills in their email; needed for the balance/investment/history blocks below)</label>
+      <select id="comm-target-user" onchange="commOnTargetUserChange()">
+        <option value="">-- None / just a custom message --</option>
+      </select>
+      <label for="comm-to-email">Send to email</label>
+      <input id="comm-to-email" type="email" placeholder="name@example.com" />
+      <label for="comm-subject">Subject</label>
+      <input id="comm-subject" type="text" placeholder="A message from Family Savings" />
+
+      <label class="checkbox-row" for="comm-include-savings">
+        <input type="checkbox" id="comm-include-savings" checked /> Include savings summary (balance &amp; interest rate)
+      </label>
+      <label class="checkbox-row" for="comm-include-investments">
+        <input type="checkbox" id="comm-include-investments" checked /> Include investment holdings
+      </label>
+      <label class="checkbox-row" for="comm-include-history">
+        <input type="checkbox" id="comm-include-history" /> Include recent transaction history (last 10 approved)
+      </label>
+
+      <label for="comm-custom-message">Your own message (optional)</label>
+      <textarea id="comm-custom-message" rows="6" placeholder="Add anything you'd like to say..."></textarea>
+
+      <button onclick="submitSendEmail(this)">Send email</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -122,7 +152,7 @@
   var _adminPendingCache = [];
 
   function adminShowTab(name) {
-    ['overview', 'approvals', 'kids', 'rates', 'users'].forEach(function (t) {
+    ['overview', 'approvals', 'kids', 'rates', 'users', 'communication'].forEach(function (t) {
       document.getElementById('admin-tab-' + t).classList.toggle('hidden', t !== name);
       document.getElementById('admin-tab-btn-' + t).classList.toggle('active', t === name);
     });
@@ -131,6 +161,7 @@
     if (name === 'kids') loadKidsOverview();
     if (name === 'rates') loadRatesTab();
     if (name === 'users') loadUsersTab();
+    if (name === 'communication') loadCommunicationTab();
   }
 
   function loadAdminDashboard() {
@@ -386,6 +417,42 @@
       });
       loadUsersTab();
       showError('Account created.');
+    }, null, button);
+  }
+
+  function loadCommunicationTab() {
+    callAuthed('listUsers', [], function (users) {
+      var select = document.getElementById('comm-target-user');
+      select.innerHTML = '<option value="">-- None / just a custom message --</option>' +
+        users.map(function (u) {
+          return '<option value="' + u.userId + '" data-email="' + escapeHtml(u.email || '') + '">' +
+            escapeHtml(u.avatar || '🙂') + ' ' + escapeHtml(u.displayName) + '</option>';
+        }).join('');
+    });
+  }
+
+  function commOnTargetUserChange() {
+    var select = document.getElementById('comm-target-user');
+    var opt = select.options[select.selectedIndex];
+    var email = opt ? opt.getAttribute('data-email') : '';
+    if (email) document.getElementById('comm-to-email').value = email;
+  }
+
+  function submitSendEmail(button) {
+    var params = {
+      targetUserId: document.getElementById('comm-target-user').value,
+      toEmail: document.getElementById('comm-to-email').value.trim(),
+      subject: document.getElementById('comm-subject').value.trim() || 'A message from Family Savings',
+      includeSavings: document.getElementById('comm-include-savings').checked,
+      includeInvestments: document.getElementById('comm-include-investments').checked,
+      includeHistory: document.getElementById('comm-include-history').checked,
+      customMessage: document.getElementById('comm-custom-message').value
+    };
+    if (!params.toEmail) { showError('Enter a recipient email address.'); return; }
+
+    callAuthed('sendCustomEmail', [params], function () {
+      showError('Email sent.');
+      document.getElementById('comm-custom-message').value = '';
     }, null, button);
   }
 </script>
