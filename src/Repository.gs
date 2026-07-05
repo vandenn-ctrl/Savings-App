@@ -35,9 +35,26 @@ function rowToObject_(sheetKey, rowArray) {
   var columns = COLUMNS[sheetKey];
   var obj = {};
   for (var i = 0; i < columns.length; i++) {
-    obj[columns[i]] = rowArray[i];
+    obj[columns[i]] = normalizeCellValue_(rowArray[i]);
   }
   return obj;
+}
+
+/**
+ * Sheets silently auto-converts date-looking strings (which is exactly what
+ * we write for timestamps) into real Date objects on read-back. A raw Date
+ * object nested inside an array of objects can silently break
+ * google.script.run's client/server serialization (the call "succeeds" but
+ * delivers null instead of throwing). So every value read from a sheet is
+ * normalized back to a plain string here, at the single choke point all
+ * reads go through, rather than leaking Date objects to every caller.
+ */
+function normalizeCellValue_(value) {
+  if (value instanceof Date) {
+    var isMidnight = value.getHours() === 0 && value.getMinutes() === 0 && value.getSeconds() === 0;
+    return isMidnight ? toDateOnlyString(value) : toIsoString(value);
+  }
+  return value;
 }
 
 function objectToRow_(sheetKey, obj) {
