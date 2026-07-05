@@ -4,16 +4,24 @@
   function getRole() { return localStorage.getItem('fs_role'); }
   function getDisplayName() { return localStorage.getItem('fs_displayName'); }
   function getAvatar() { return localStorage.getItem('fs_avatar') || '🙂'; }
+  function getTheme() { return localStorage.getItem('fs_theme') || ''; }
 
   function setSession(session) {
     localStorage.setItem('fs_token', session.token);
     localStorage.setItem('fs_role', session.role);
     localStorage.setItem('fs_displayName', session.displayName);
     localStorage.setItem('fs_avatar', session.avatar || '🙂');
+    localStorage.setItem('fs_theme', session.theme || '');
+    applyTheme(session.theme || '');
   }
 
   function setAvatar(avatar) {
     localStorage.setItem('fs_avatar', avatar);
+  }
+
+  function setTheme(themeStr) {
+    localStorage.setItem('fs_theme', themeStr || '');
+    applyTheme(themeStr || '');
   }
 
   function clearSession() {
@@ -21,6 +29,42 @@
     localStorage.removeItem('fs_role');
     localStorage.removeItem('fs_displayName');
     localStorage.removeItem('fs_avatar');
+    localStorage.removeItem('fs_theme');
+    applyTheme('');
+  }
+
+  // --- Per-user theme (accent color + solid/gradient background) ----------
+  function darkenHex_(hex, amount) {
+    var num = parseInt(String(hex || '').replace('#', ''), 16);
+    if (isNaN(num)) return hex;
+    var r = Math.max(0, (num >> 16) - amount);
+    var g = Math.max(0, ((num >> 8) & 0xff) - amount);
+    var b = Math.max(0, (num & 0xff) - amount);
+    return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+  }
+
+  /** Applies a theme JSON string (or '' to reset) as CSS custom property overrides. */
+  function applyTheme(themeStr) {
+    var root = document.documentElement.style;
+    var theme = null;
+    try { theme = themeStr ? JSON.parse(themeStr) : null; } catch (e) { theme = null; }
+
+    if (!theme) {
+      ['--color-primary', '--color-primary-dark', '--color-bg'].forEach(function (p) {
+        root.removeProperty(p);
+      });
+      return;
+    }
+
+    if (theme.accent) {
+      root.setProperty('--color-primary', theme.accent);
+      root.setProperty('--color-primary-dark', darkenHex_(theme.accent, 30));
+    }
+    if (theme.bgMode === 'gradient' && theme.bgFrom && theme.bgTo) {
+      root.setProperty('--color-bg', 'linear-gradient(135deg, ' + theme.bgFrom + ', ' + theme.bgTo + ')');
+    } else if (theme.bgFrom) {
+      root.setProperty('--color-bg', theme.bgFrom);
+    }
   }
 
   // --- Error banner -------------------------------------------------------
@@ -112,7 +156,8 @@
    * Shows the shared modal and resolves a Promise with { confirmed, values }
    * once the user clicks Confirm or Cancel. values is keyed by each field's
    * "key". options: { title, bodyText, confirmLabel, fields: [{
-   *   key, label, type ('text'/'number'/'password'/'select'), placeholder,
+   *   key, label, type ('text'/'number'/'password'/'select'/'color'), placeholder,
+   *   value -- pre-fills the field (selects the matching <option> for 'select'),
    *   options: [{value,label}] (for type:'select'),
    *   showWhen: {key, values} -- only visible when that other field's
    *             current value is in `values` (used for the type-dependent
@@ -139,11 +184,13 @@
         var control;
         if (f.type === 'select') {
           var opts = (f.options || []).map(function (o) {
-            return '<option value="' + escapeHtml(o.value) + '">' + escapeHtml(o.label) + '</option>';
+            var selectedAttr = (f.value !== undefined && o.value === f.value) ? ' selected' : '';
+            return '<option value="' + escapeHtml(o.value) + '"' + selectedAttr + '>' + escapeHtml(o.label) + '</option>';
           }).join('');
           control = '<select id="modal-field-' + f.key + '">' + opts + '</select>';
         } else {
-          control = '<input id="modal-field-' + f.key + '" type="' + (f.type || 'text') + '" placeholder="' + escapeHtml(f.placeholder || '') + '" />';
+          control = '<input id="modal-field-' + f.key + '" type="' + (f.type || 'text') +
+            '" value="' + escapeHtml(f.value || '') + '" placeholder="' + escapeHtml(f.placeholder || '') + '" />';
         }
         return '<div id="modal-field-wrap-' + f.key + '">' + label + control + '</div>';
       }).join('');

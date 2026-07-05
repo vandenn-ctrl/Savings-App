@@ -21,8 +21,10 @@ var COLUMNS = {
   // Avatar is appended at the end (rather than interleaved) so it's additive for
   // sheets already created by an earlier version -- Sheets' default grid has plenty
   // of blank columns beyond the header row, so this new column reads as '' safely.
+  // Theme is a JSON string ({accent, bgMode, bgFrom, bgTo}) rendered as CSS custom
+  // property overrides client-side; '' means "use the app's default look."
   Users: ['UserId', 'Username', 'DisplayName', 'Role', 'PasscodeHash', 'PasscodeSalt',
-    'Status', 'StatementFrequency', 'StatementDay', 'Email', 'CreatedAt', 'CreatedBy', 'Avatar'],
+    'Status', 'StatementFrequency', 'StatementDay', 'Email', 'CreatedAt', 'CreatedBy', 'Avatar', 'Theme'],
   Accounts: ['AccountId', 'UserId', 'AccountType', 'CashBalance', 'InterestRateOverride', 'LastAccrualDate'],
   InterestConfig: ['ConfigId', 'GlobalAnnualRate', 'EffectiveFrom', 'EffectiveTo', 'SetBy', 'SetAt'],
   Transactions: ['TransactionId', 'UserId', 'AccountId', 'Type', 'Status', 'Amount', 'Ticker',

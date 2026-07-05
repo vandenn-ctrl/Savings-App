@@ -89,7 +89,8 @@ function createInitialAdmin() {
     Email: email,
     CreatedAt: toIsoString(nowDate()),
     CreatedBy: 'system',
-    Avatar: '👑'
+    Avatar: '👑',
+    Theme: ''
   });
 
   Logger.log('Admin user "%s" created. Log in with the passcode you set in createInitialAdmin().', username);

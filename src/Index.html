@@ -16,6 +16,7 @@
         </div>
       </div>
       <div style="flex: 0 0 auto;">
+        <button class="secondary" onclick="handleCustomizeTheme(this)">🎨 Theme</button>
         <button class="secondary" onclick="handleSwitchUser(this)">Switch User</button>
         <button class="secondary" onclick="handleLogout(this)">Log out</button>
       </div>
@@ -59,6 +60,7 @@
       }
 
       topBar.classList.remove('hidden');
+      applyTheme(getTheme());
       document.getElementById('top-bar-avatar').textContent = getAvatar();
       document.getElementById('top-bar-name').textContent = getDisplayName() || '';
       var roleEl = document.getElementById('top-bar-role');
@@ -86,6 +88,44 @@
         callAuthed('setMyAvatar', [result.values.avatar], function (updated) {
           setAvatar(updated.avatar);
           document.getElementById('top-bar-avatar').textContent = updated.avatar;
+        }, null, button);
+      });
+    }
+
+    function handleCustomizeTheme(button) {
+      var current = {};
+      try { current = getTheme() ? JSON.parse(getTheme()) : {}; } catch (e) { current = {}; }
+
+      showModal({
+        title: 'Customize your theme',
+        bodyText: 'Pick your own accent color and background. This only changes how the app looks for you.',
+        fields: [
+          { key: 'accent', label: 'Accent color', type: 'color', value: current.accent || '#2f6f4f' },
+          {
+            key: 'bgMode', label: 'Background style', type: 'select', value: current.bgMode || 'solid',
+            options: [
+              { value: 'solid', label: 'Solid color' },
+              { value: 'gradient', label: 'Gradient' }
+            ]
+          },
+          { key: 'bgFrom', label: 'Background color', type: 'color', value: current.bgFrom || '#f4f6f8' },
+          {
+            key: 'bgTo', label: 'Gradient second color', type: 'color', value: current.bgTo || '#dbe6e0',
+            showWhen: { key: 'bgMode', values: ['gradient'] }
+          }
+        ],
+        confirmLabel: 'Save theme'
+      }).then(function (result) {
+        if (!result.confirmed) return;
+        var theme = {
+          accent: result.values.accent,
+          bgMode: result.values.bgMode,
+          bgFrom: result.values.bgFrom,
+          bgTo: result.values.bgTo
+        };
+        var themeStr = JSON.stringify(theme);
+        callAuthed('setMyTheme', [themeStr], function () {
+          setTheme(themeStr);
         }, null, button);
       });
     }

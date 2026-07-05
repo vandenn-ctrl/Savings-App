@@ -57,7 +57,8 @@ function login(username, passcode) {
     userId: user.UserId,
     role: user.Role,
     displayName: user.DisplayName,
-    avatar: user.Avatar || DEFAULT_AVATAR
+    avatar: user.Avatar || DEFAULT_AVATAR,
+    theme: user.Theme || ''
   };
 }
 
@@ -100,7 +101,8 @@ function createAccount(token, params) {
     Email: params.email || '',
     CreatedAt: toIsoString(nowDate()),
     CreatedBy: admin.UserId,
-    Avatar: params.avatar || DEFAULT_AVATAR
+    Avatar: params.avatar || DEFAULT_AVATAR,
+    Theme: ''
   });
 
   if (role === ROLE.KID) {
@@ -167,6 +169,22 @@ function setMyAvatar(token, avatar) {
 
   updateById(SHEETS.USERS, 'UserId', user.UserId, { Avatar: avatar });
   return { avatar: avatar };
+}
+
+/**
+ * Any logged-in user: change their own color theme (accent color + solid/
+ * gradient background), applied client-side as CSS custom property
+ * overrides. themeJson is a small JSON string the client builds; stored
+ * as-is (it's just color values rendered via CSSOM setProperty, which can't
+ * inject arbitrary CSS rules, so no server-side parsing is needed).
+ */
+function setMyTheme(token, themeJson) {
+  var user = validateSession(token);
+  themeJson = String(themeJson || '');
+  if (themeJson.length > 500) throw new Error('Theme data is too large.');
+
+  updateById(SHEETS.USERS, 'UserId', user.UserId, { Theme: themeJson });
+  return { theme: themeJson };
 }
 
 function setUserStatus(token, targetUserId, status) {
