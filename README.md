@@ -11,7 +11,18 @@ Sheets** (data store), **Google Apps Script** (backend), and an Apps Script
 ## One-time setup
 
 You'll need [clasp](https://github.com/google/clasp), Google's CLI for
-managing Apps Script projects from the command line.
+managing Apps Script projects from the command line, and you must run these
+steps **on your own computer** (not a remote/cloud dev environment) — clasp's
+login flow spins up a `localhost` server to catch Google's OAuth redirect,
+which only works when your browser and the `clasp` process are on the same
+machine. You'll also need [Node.js](https://nodejs.org) installed.
+
+0. Get the code onto your machine:
+   ```
+   git clone https://github.com/vandenn-ctrl/savings-app.git
+   cd savings-app
+   git checkout claude/app-idea-planning-setup-q2xb2p
+   ```
 
 1. Install dependencies:
    ```
