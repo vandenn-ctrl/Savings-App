@@ -119,4 +119,36 @@
     margin-bottom: 14px;
   }
   .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+
+  .avatar-badge {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    border-radius: 50%;
+    background: var(--color-bg);
+    border: 2px solid var(--color-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    cursor: pointer;
+    line-height: 1;
+  }
+  .avatar-badge:hover { border-color: var(--color-primary-dark); }
+
+  .user-badge { display: flex; align-items: center; gap: 10px; }
+  .user-badge .user-name { font-weight: 600; font-size: 15px; }
+  .user-badge .user-role { font-size: 12px; color: var(--color-muted); }
+
+  .top-bar-role-pill {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+  }
+  .top-bar-role-pill.role-ADMIN { background: #ffe4b8; color: #7a4a00; }
+  .top-bar-role-pill.role-KID { background: #d9e8ff; color: #1c4c8c; }
 </style>

@@ -8,9 +8,12 @@
   <div class="app-shell">
     <div id="global-error-banner" class="error-banner"></div>
     <div id="top-bar" class="row hidden" style="align-items:center; margin-bottom: 12px;">
-      <div style="flex: 2;">
-        <strong>Family Savings</strong>
-        <span class="muted" id="top-bar-name"></span>
+      <div class="user-badge" style="flex: 2;">
+        <div id="top-bar-avatar" class="avatar-badge" onclick="handleChangeMyAvatar(this)" title="Click to change your avatar">🙂</div>
+        <div>
+          <div class="user-name" id="top-bar-name"></div>
+          <span class="top-bar-role-pill" id="top-bar-role"></span>
+        </div>
       </div>
       <div style="flex: 0 0 auto;">
         <button class="secondary" onclick="handleSwitchUser(this)">Switch User</button>
@@ -56,7 +59,11 @@
       }
 
       topBar.classList.remove('hidden');
-      document.getElementById('top-bar-name').textContent = ' — ' + (getDisplayName() || '');
+      document.getElementById('top-bar-avatar').textContent = getAvatar();
+      document.getElementById('top-bar-name').textContent = getDisplayName() || '';
+      var roleEl = document.getElementById('top-bar-role');
+      roleEl.textContent = role === 'ADMIN' ? 'Parent / Admin' : 'Kid';
+      roleEl.className = 'top-bar-role-pill role-' + role;
 
       hideAllViews();
       if (role === 'ADMIN') {
@@ -66,6 +73,21 @@
         document.getElementById('view-kid').classList.remove('hidden');
         if (typeof loadKidDashboard === 'function') loadKidDashboard();
       }
+    }
+
+    function handleChangeMyAvatar(button) {
+      showModal({
+        title: 'Set your avatar',
+        bodyText: 'Pick an emoji to represent you (e.g. 🦊 👧 👦 🚀 ⚽).',
+        fields: [{ key: 'avatar', label: 'Emoji', placeholder: getAvatar() }],
+        confirmLabel: 'Save'
+      }).then(function (result) {
+        if (!result.confirmed || !result.values.avatar) return;
+        callAuthed('setMyAvatar', [result.values.avatar], function (updated) {
+          setAvatar(updated.avatar);
+          document.getElementById('top-bar-avatar').textContent = updated.avatar;
+        }, null, button);
+      });
     }
 
     function handleSwitchUser(button) {

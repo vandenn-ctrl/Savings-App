@@ -18,8 +18,11 @@ var SHEETS = {
 
 // Column order also defines the header row written by Bootstrap.gs.
 var COLUMNS = {
+  // Avatar is appended at the end (rather than interleaved) so it's additive for
+  // sheets already created by an earlier version -- Sheets' default grid has plenty
+  // of blank columns beyond the header row, so this new column reads as '' safely.
   Users: ['UserId', 'Username', 'DisplayName', 'Role', 'PasscodeHash', 'PasscodeSalt',
-    'Status', 'StatementFrequency', 'StatementDay', 'Email', 'CreatedAt', 'CreatedBy'],
+    'Status', 'StatementFrequency', 'StatementDay', 'Email', 'CreatedAt', 'CreatedBy', 'Avatar'],
   Accounts: ['AccountId', 'UserId', 'AccountType', 'CashBalance', 'InterestRateOverride', 'LastAccrualDate'],
   InterestConfig: ['ConfigId', 'GlobalAnnualRate', 'EffectiveFrom', 'EffectiveTo', 'SetBy', 'SetAt'],
   Transactions: ['TransactionId', 'UserId', 'AccountId', 'Type', 'Status', 'Amount', 'Ticker',
@@ -33,6 +36,8 @@ var COLUMNS = {
   StatementLog: ['LogId', 'UserId', 'PeriodStart', 'PeriodEnd', 'SentAt', 'Status', 'ErrorMessage'],
   AuditLog: ['LogId', 'Timestamp', 'ActorUserId', 'Action', 'TargetType', 'TargetId', 'Details']
 };
+
+var DEFAULT_AVATAR = '🙂';
 
 var ROLE = { ADMIN: 'ADMIN', KID: 'KID' };
 var USER_STATUS = { ACTIVE: 'ACTIVE', DISABLED: 'DISABLED' };

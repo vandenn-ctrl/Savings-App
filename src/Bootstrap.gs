@@ -88,7 +88,8 @@ function createInitialAdmin() {
     StatementDay: '',
     Email: email,
     CreatedAt: toIsoString(nowDate()),
-    CreatedBy: 'system'
+    CreatedBy: 'system',
+    Avatar: '👑'
   });
 
   Logger.log('Admin user "%s" created. Log in with the passcode you set in createInitialAdmin().', username);

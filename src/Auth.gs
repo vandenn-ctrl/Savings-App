@@ -33,7 +33,7 @@ function requireAdmin_(user) {
 }
 
 /**
- * Logs a user in by username + passcode. Returns { token, userId, role, displayName }.
+ * Logs a user in by username + passcode. Returns { token, userId, role, displayName, avatar }.
  */
 function login(username, passcode) {
   var user = findOneWhere(SHEETS.USERS, function (row) {
@@ -52,7 +52,13 @@ function login(username, passcode) {
   var token = Utilities.getUuid();
   putSession(token, user.UserId);
 
-  return { token: token, userId: user.UserId, role: user.Role, displayName: user.DisplayName };
+  return {
+    token: token,
+    userId: user.UserId,
+    role: user.Role,
+    displayName: user.DisplayName,
+    avatar: user.Avatar || DEFAULT_AVATAR
+  };
 }
 
 function logout(token) {
@@ -93,7 +99,8 @@ function createAccount(token, params) {
     StatementDay: params.statementDay || '',
     Email: params.email || '',
     CreatedAt: toIsoString(nowDate()),
-    CreatedBy: admin.UserId
+    CreatedBy: admin.UserId,
+    Avatar: params.avatar || DEFAULT_AVATAR
   });
 
   if (role === ROLE.KID) {
@@ -149,6 +156,17 @@ function resetPasscode(token, targetUserId, newPasscode) {
 
   logAudit_(admin.UserId, 'RESET_PASSCODE', 'User', targetUserId, {});
   return { ok: true };
+}
+
+/** Any logged-in user: change their own avatar emoji, shown in the top bar for at-a-glance identification. */
+function setMyAvatar(token, avatar) {
+  var user = validateSession(token);
+  avatar = String(avatar || '').trim();
+  if (!avatar) throw new Error('Enter an emoji.');
+  if (avatar.length > 8) throw new Error('That doesn\'t look like a single emoji.');
+
+  updateById(SHEETS.USERS, 'UserId', user.UserId, { Avatar: avatar });
+  return { avatar: avatar };
 }
 
 function setUserStatus(token, targetUserId, status) {

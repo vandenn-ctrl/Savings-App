@@ -69,6 +69,8 @@
           <input id="admin-new-email" type="email" />
         </div>
       </div>
+      <label for="admin-new-avatar">Avatar emoji (optional, e.g. 🦊)</label>
+      <input id="admin-new-avatar" type="text" placeholder="🙂" />
       <label for="admin-new-role">Role</label>
       <select id="admin-new-role">
         <option value="KID">Kid</option>
@@ -184,7 +186,7 @@
         callAuthed('getUserSummary', [kid.userId], function (summary) {
           rowsHtml.push({
             order: kid.userId,
-            html: '<tr><td>' + escapeHtml(kid.displayName) + '</td><td>' + formatMoney(summary.savings.cashBalance) +
+            html: '<tr><td>' + escapeHtml(kid.avatar || '🙂') + ' ' + escapeHtml(kid.displayName) + '</td><td>' + formatMoney(summary.savings.cashBalance) +
               '</td><td>' + formatMoney(summary.holdingsValue) + '</td><td>' + formatMoney(summary.netWorth) + '</td>' +
               '<td><button onclick="adminEnterTransaction(this, \'' + kid.userId + '\', \'' + escapeHtml(kid.displayName) + '\')">Enter transaction</button> ' +
               '<button class="secondary" onclick="promptResetPasscode(this, \'' + kid.userId + '\')">Reset code</button></td></tr>'
@@ -289,7 +291,7 @@
       var rows = users.map(function (u) {
         var toggleLabel = u.status === 'ACTIVE' ? 'Disable' : 'Enable';
         var toggleStatus = u.status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE';
-        return '<tr><td>' + escapeHtml(u.username) + '</td><td>' + escapeHtml(u.displayName) + '</td><td>' +
+        return '<tr><td>' + escapeHtml(u.username) + '</td><td>' + escapeHtml(u.avatar || '🙂') + ' ' + escapeHtml(u.displayName) + '</td><td>' +
           u.role + '</td><td>' + u.status + '</td><td>' +
           '<button class="secondary" onclick="toggleUserStatus(this, \'' + u.userId + '\', \'' + toggleStatus + '\')">' + toggleLabel + '</button></td></tr>';
       }).join('');
@@ -307,12 +309,13 @@
       displayName: document.getElementById('admin-new-displayname').value.trim(),
       passcode: document.getElementById('admin-new-passcode').value,
       email: document.getElementById('admin-new-email').value.trim(),
+      avatar: document.getElementById('admin-new-avatar').value.trim(),
       role: document.getElementById('admin-new-role').value
     };
     if (!params.username || !params.passcode) { showError('Username and access code are required.'); return; }
 
     callAuthed('createAccount', [params], function () {
-      ['admin-new-username', 'admin-new-displayname', 'admin-new-passcode', 'admin-new-email'].forEach(function (id) {
+      ['admin-new-username', 'admin-new-displayname', 'admin-new-passcode', 'admin-new-email', 'admin-new-avatar'].forEach(function (id) {
         document.getElementById(id).value = '';
       });
       loadUsersTab();

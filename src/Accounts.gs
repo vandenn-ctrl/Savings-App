@@ -24,7 +24,8 @@ function listUsers(token) {
       status: u.Status,
       email: u.Email,
       statementFrequency: u.StatementFrequency,
-      statementDay: u.StatementDay
+      statementDay: u.StatementDay,
+      avatar: u.Avatar || DEFAULT_AVATAR
     };
   });
 }
@@ -41,6 +42,7 @@ function buildDashboardSummary_(user) {
 
   return {
     displayName: user.DisplayName,
+    avatar: user.Avatar || DEFAULT_AVATAR,
     savings: {
       cashBalance: savingsBalance,
       accruedInterestToday: roundMoney(accruedToday),

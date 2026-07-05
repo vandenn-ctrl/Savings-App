@@ -3,17 +3,24 @@
   function getToken() { return localStorage.getItem('fs_token'); }
   function getRole() { return localStorage.getItem('fs_role'); }
   function getDisplayName() { return localStorage.getItem('fs_displayName'); }
+  function getAvatar() { return localStorage.getItem('fs_avatar') || '🙂'; }
 
   function setSession(session) {
     localStorage.setItem('fs_token', session.token);
     localStorage.setItem('fs_role', session.role);
     localStorage.setItem('fs_displayName', session.displayName);
+    localStorage.setItem('fs_avatar', session.avatar || '🙂');
+  }
+
+  function setAvatar(avatar) {
+    localStorage.setItem('fs_avatar', avatar);
   }
 
   function clearSession() {
     localStorage.removeItem('fs_token');
     localStorage.removeItem('fs_role');
     localStorage.removeItem('fs_displayName');
+    localStorage.removeItem('fs_avatar');
   }
 
   // --- Error banner -------------------------------------------------------
