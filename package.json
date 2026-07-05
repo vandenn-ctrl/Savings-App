@@ -4,8 +4,8 @@
   "private": true,
   "description": "A family savings & investment tracker built on Google Sheets + Google Apps Script.",
   "scripts": {
-    "login": "clasp login",
-    "create": "clasp create --type webapp --title \"Family Savings App\" --rootDir ./src",
+    "login": "clasp login --no-localhost",
+    "create": "clasp create --type sheets --title \"Family Savings App\" --rootDir ./src",
     "push": "clasp push",
     "open": "clasp open",
     "deploy": "clasp deploy"
