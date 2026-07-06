@@ -1,5 +1,7 @@
 <div id="view-login" class="app-shell hidden">
-  <div class="card" style="max-width: 360px; margin: 60px auto;">
+  <div class="card" style="max-width: 360px; margin: 60px auto; position: relative;">
+    <div id="login-version-badge" onclick="showVersionInfo()" title="What's new"
+      style="position:absolute; top:12px; right:12px; cursor:pointer; font-size:18px; line-height:1; color: var(--color-muted); user-select:none;">▲</div>
     <h2>Family Savings</h2>
     <p class="muted">Enter your username and access code to continue.</p>
     <label for="login-username">Username</label>
@@ -11,6 +13,34 @@
 </div>
 
 <script>
+  /**
+   * Bumped by hand with every push, so a quick glance at the login page's
+   * triangle badge tells you whether a deploy actually took -- if you just
+   * pushed and this still shows the old date/notes, the deploy or the
+   * browser cache is stale, not the underlying feature.
+   */
+  var APP_VERSION_INFO = {
+    version: 'v1.10',
+    date: '2026-07-06',
+    notes: [
+      'Login page version badge (this popup)',
+      'Kid Overview: savings history chart + 4-month interest projection',
+      'Admin can edit a buy/sell\'s price after the fact, not just quantity',
+      'Communicate tab: Inbox / Sent / Drafts / Compose',
+      'Kids can message their parent outside of a transaction',
+      'FAB spiral trimmed down; tap your name to go Home'
+    ]
+  };
+
+  function showVersionInfo() {
+    showModal({
+      title: 'What\'s new -- ' + APP_VERSION_INFO.version + ' (' + APP_VERSION_INFO.date + ')',
+      bodyText: APP_VERSION_INFO.notes.map(function (n) { return '- ' + n; }).join('\n'),
+      fields: [],
+      confirmLabel: 'Close'
+    });
+  }
+
   function handleLogin(button) {
     var username = document.getElementById('login-username').value.trim();
     var passcode = document.getElementById('login-passcode').value;
