@@ -1,27 +1,19 @@
 <div id="view-admin" class="app-shell hidden">
   <div id="admin-tab-overview">
     <div class="card">
-      <h3>Savings &amp; investments by kid</h3>
-      <div class="kids-chart-legend">
-        <span><span class="swatch swatch-savings"></span>Savings</span>
-        <span><span class="swatch swatch-investments"></span>Investments</span>
-      </div>
-      <div id="overview-chart-wrap" class="kids-chart-wrap"></div>
+      <h3>Savings over time</h3>
+      <div id="admin-savings-chart-legend" class="kids-chart-legend"></div>
+      <div id="admin-savings-chart-wrap" class="kids-chart-wrap"></div>
     </div>
-    <div class="card">
-      <h3>Actions</h3>
-      <div class="row" style="flex-wrap: wrap;">
-        <button onclick="adminShowTab('approvals')">✅ Approvals</button>
-        <button onclick="adminShowTab('kids')">👨‍👩‍👧‍👦 Kids</button>
-        <button onclick="adminShowTab('rates')">💹 Rates</button>
-        <button onclick="adminShowTab('users')">👤 Users</button>
-        <button onclick="adminShowTab('manage')">🛠️ Manage</button>
-        <button class="secondary" onclick="adminShowTab('communicate')">💬 Communicate</button>
-      </div>
-    </div>
-  </div>
+    <div id="admin-savings-chart-tooltip" class="kids-chart-tooltip"></div>
 
-  <div id="kids-chart-tooltip" class="kids-chart-tooltip"></div>
+    <div class="card">
+      <h3>Investment earnings</h3>
+      <div id="admin-invest-chart-legend" class="kids-chart-legend"></div>
+      <div id="admin-invest-chart-wrap" class="kids-chart-wrap"></div>
+    </div>
+    <div id="admin-invest-chart-tooltip" class="kids-chart-tooltip"></div>
+  </div>
 
   <div id="admin-tab-approvals" class="hidden">
     <div class="card">
@@ -124,7 +116,7 @@
     </div>
 
     <div class="card">
-      <button class="secondary" onclick="toggleAllTransactions(this)">Show all transactions ▾</button>
+      <button id="manage-transactions-toggle-btn" class="secondary" onclick="toggleAllTransactions(this)">Show all transactions ▾</button>
       <div id="admin-transactions-panel" class="hidden" style="margin-top:14px;">
         <p class="muted">Edit corrects the amount/quantity and note; if the transaction was already approved, its balance/holdings effect is automatically reversed and reapplied. Delete removes it entirely (and reverses its effect, if approved).</p>
         <table>
@@ -227,178 +219,126 @@
 
   function loadAdminDashboard() {
     loadOverviewTab();
+    refreshApprovalsBadge();
   }
 
   function loadOverviewTab() {
-    callAuthed('listUsers', [], function (users) {
-      var kids = users.filter(function (u) { return u.role === 'KID'; });
-      if (kids.length === 0) {
-        document.getElementById('overview-chart-wrap').innerHTML = '<p class="muted">No kids yet.</p>';
-        return;
-      }
-
-      var results = new Array(kids.length); // indexed by position, not completion order
-      var remaining = kids.length;
-
-      kids.forEach(function (kid, index) {
-        callAuthed('getUserSummary', [kid.userId], function (summary) {
-          results[index] = {
-            displayName: kid.displayName,
-            avatar: kid.avatar || '🙂',
-            savings: summary.savings.cashBalance,
-            investments: summary.holdingsValue
-          };
-          remaining--;
-          if (remaining === 0) {
-            renderKidsChart(results);
-          }
-        });
-      });
+    callAuthed('getAllKidsSavingsHistory', [], function (series) {
+      renderMultiKidTrendChart(series, 'admin-savings-chart-wrap', 'admin-savings-chart-tooltip', 'admin-savings-chart-legend');
+    });
+    callAuthed('getAllKidsInvestmentEarningsHistory', [], function (series) {
+      renderMultiKidTrendChart(series, 'admin-invest-chart-wrap', 'admin-invest-chart-tooltip', 'admin-invest-chart-legend');
     });
   }
 
+  var CATEGORICAL_COLORS_ = ['#2a78d6', '#1baf7a', '#eda100', '#008300', '#4a3aa7', '#e34948', '#e87ba4', '#eb6834'];
+  var _multiTrendDataByWrapId = {};
+
   /**
-   * Renders a stacked-column chart (savings + investments per kid) as a
-   * self-contained SVG -- no external chart library, consistent with the
-   * rest of this app. Colors are the validated categorical palette (blue =
-   * savings, aqua = investments), not the user's custom accent theme, since
-   * chart colors need CVD-safe contrast that an arbitrary user-picked color
-   * can't guarantee.
+   * Multi-series line chart -- one line per kid, no area fill (several
+   * overlapping fills would be visual noise), fixed categorical colors
+   * assigned by kid order so a given kid is the same color in both the
+   * savings and investment-earnings charts. Direct end-labels (avatar +
+   * value) plus a line-key legend, since 2+ series always needs one.
    */
-  function renderKidsChart(kids) {
-    var wrap = document.getElementById('overview-chart-wrap');
-    var maxTotal = kids.reduce(function (m, k) { return Math.max(m, k.savings + k.investments); }, 0);
-    if (maxTotal <= 0) {
-      wrap.innerHTML = '<p class="muted">No balances yet.</p>';
+  function renderMultiKidTrendChart(series, wrapId, tooltipId, legendId) {
+    var wrap = document.getElementById(wrapId);
+    var legendEl = document.getElementById(legendId);
+    if (!series || series.length === 0) {
+      wrap.innerHTML = '<p class="muted">No kids yet.</p>';
+      if (legendEl) legendEl.innerHTML = '';
       return;
     }
 
-    var bandWidth = 84;
-    var barWidth = 24;
-    var chartHeight = 200;
-    var topPad = 24;   // room for the total-value label above the tallest bar
-    var bottomPad = 34; // room for the category label + avatar below the baseline
-    var leftPad = 52;   // room for y-axis tick labels
-    var rightPad = 12;
-    var width = leftPad + rightPad + bandWidth * kids.length;
-    var height = topPad + chartHeight + bottomPad;
+    series.forEach(function (s, i) { s.color = CATEGORICAL_COLORS_[i % CATEGORICAL_COLORS_.length]; });
+    _multiTrendDataByWrapId[wrapId] = series;
 
-    var step = niceChartStep_(maxTotal / 4);
-    var niceMax = Math.ceil(maxTotal / step) * step;
-    var scale = chartHeight / niceMax;
-
-    var svg = '<svg class="kids-chart-svg" viewBox="0 0 ' + width + ' ' + height + '" width="' + width + '" height="' + height + '" role="img" aria-label="Savings and investments by kid">';
-
-    // Gridlines + y-axis labels (0 up to niceMax, in `step` increments)
-    for (var v = 0; v <= niceMax; v += step) {
-      var y = topPad + chartHeight - v * scale;
-      var isBaseline = v === 0;
-      svg += '<line x1="' + leftPad + '" y1="' + y + '" x2="' + (width - rightPad) + '" y2="' + y +
-        '" class="' + (isBaseline ? 'kids-chart-baseline' : 'kids-chart-gridline') + '"/>';
-      svg += '<text x="' + (leftPad - 8) + '" y="' + (y + 4) + '" text-anchor="end" class="kids-chart-axis-label">' +
-        formatChartTick_(v) + '</text>';
+    if (legendEl) {
+      legendEl.innerHTML = series.map(function (s) {
+        return '<span><span class="line-key" style="border-color:' + s.color + ';"></span>' +
+          escapeHtml(s.avatar) + ' ' + escapeHtml(s.displayName) + '</span>';
+      }).join('');
     }
 
-    kids.forEach(function (kid, i) {
-      var bandX = leftPad + i * bandWidth;
-      var barX = bandX + (bandWidth - barWidth) / 2;
-      var total = kid.savings + kid.investments;
+    var pointCount = series[0].points.length;
+    var allValues = [];
+    series.forEach(function (s) { s.points.forEach(function (p) { allValues.push(p.value); }); });
+    var minV = Math.min(0, Math.min.apply(null, allValues));
+    var maxV = Math.max(0, Math.max.apply(null, allValues));
 
-      var savingsH = kid.savings * scale;
-      var investH = kid.investments * scale;
-      var gap = (kid.savings > 0 && kid.investments > 0) ? 2 : 0;
+    var chartHeight = 220, topPad = 28, bottomPad = 24, leftPad = 56, rightPad = 90;
+    var colWidth = 46;
+    var width = leftPad + rightPad + colWidth * (pointCount - 1);
+    var height = topPad + chartHeight + bottomPad;
 
-      var baselineY = topPad + chartHeight;
-      var savingsY = baselineY - savingsH;
-      var investY = savingsY - gap - investH;
-      var topY = kid.investments > 0 ? investY : savingsY;
+    var step = niceChartStep_((maxV - minV) / 4 || 1);
+    var niceMax = Math.ceil(maxV / step) * step;
+    var niceMin = Math.floor(minV / step) * step;
+    var range = (niceMax - niceMin) || 1;
+    var scale = chartHeight / range;
 
-      // Invisible full-height hit target for hover/focus -- bigger than the painted bars.
-      svg += '<rect x="' + bandX + '" y="' + topPad + '" width="' + bandWidth + '" height="' + chartHeight +
-        '" fill="transparent" tabindex="0" aria-label="' + escapeHtml(kid.avatar + ' ' + kid.displayName) +
-        ': ' + formatMoney(total) + '" onmouseenter="showKidsChartTooltip(event,' + i + ')" ' +
-        'onmousemove="positionKidsChartTooltip(event)" onmouseleave="hideKidsChartTooltip()" ' +
-        'onfocus="showKidsChartTooltip(event,' + i + ')" onblur="hideKidsChartTooltip()"/>';
+    function xFor(i) { return leftPad + i * colWidth; }
+    function yFor(v) { return topPad + chartHeight - (v - niceMin) * scale; }
 
-      // rect's rx rounds all 4 corners, which would wrongly round a segment's
-      // baseline or stack-join edge -- so the topmost segment of the stack is
-      // drawn as a path with rounded top corners only; any other segment (the
-      // bottom one, sitting under another) is a plain square-cornered rect.
-      if (kid.savings > 0) {
-        if (kid.investments > 0) {
-          svg += '<rect x="' + barX + '" y="' + savingsY + '" width="' + barWidth + '" height="' + savingsH +
-            '" class="kids-chart-bar-savings" style="pointer-events:none;"/>';
-        } else {
-          svg += '<path d="' + roundedTopRectPath_(barX, savingsY, barWidth, savingsH, 4) +
-            '" class="kids-chart-bar-savings" style="pointer-events:none;"/>';
-        }
-      }
-      if (kid.investments > 0) {
-        svg += '<path d="' + roundedTopRectPath_(barX, investY, barWidth, investH, 4) +
-          '" class="kids-chart-bar-investments" style="pointer-events:none;"/>';
-      }
+    var svg = '<svg class="kids-chart-svg" viewBox="0 0 ' + width + ' ' + height + '" width="' + width + '" height="' + height + '" role="img" aria-label="Weekly history by kid, past month and current month">';
 
-      svg += '<text x="' + (bandX + bandWidth / 2) + '" y="' + (topY - 8) + '" text-anchor="middle" class="kids-chart-total-label">' +
-        formatChartTotal_(total) + '</text>';
-      svg += '<text x="' + (bandX + bandWidth / 2) + '" y="' + (baselineY + 18) + '" text-anchor="middle" class="kids-chart-category-label">' +
-        escapeHtml(kid.avatar) + '</text>';
-      svg += '<text x="' + (bandX + bandWidth / 2) + '" y="' + (baselineY + 31) + '" text-anchor="middle" class="kids-chart-category-label">' +
-        escapeHtml(truncateLabel_(kid.displayName, 10)) + '</text>';
+    for (var v = niceMin; v <= niceMax + 0.001; v += step) {
+      var y = yFor(v);
+      var isBaseline = Math.abs(v) < 0.001;
+      svg += '<line x1="' + leftPad + '" y1="' + y + '" x2="' + (width - rightPad) + '" y2="' + y +
+        '" class="' + (isBaseline ? 'kids-chart-baseline' : 'kids-chart-gridline') + '"/>';
+      svg += '<text x="' + (leftPad - 8) + '" y="' + (y + 4) + '" text-anchor="end" class="kids-chart-axis-label">' + formatChartTick_(v) + '</text>';
+    }
+
+    series.forEach(function (s) {
+      var line = '';
+      s.points.forEach(function (p, i) { line += (i === 0 ? 'M' : ' L') + xFor(i) + ',' + yFor(p.value); });
+      svg += '<path d="' + line + '" stroke="' + s.color + '" stroke-width="2" fill="none"/>';
+    });
+
+    series[0].points.forEach(function (p, i) {
+      svg += '<text x="' + xFor(i) + '" y="' + (topPad + chartHeight + 18) + '" text-anchor="middle" class="kids-chart-axis-label">' + escapeHtml(p.label) + '</text>';
+      svg += '<rect x="' + (xFor(i) - colWidth / 2) + '" y="' + topPad + '" width="' + colWidth + '" height="' + chartHeight +
+        '" fill="transparent" tabindex="0" onmouseenter="showMultiKidTooltip(event,' + i + ',\'' + wrapId + '\',\'' + tooltipId + '\')" ' +
+        'onmousemove="positionMultiKidTooltip(event,\'' + tooltipId + '\')" onmouseleave="hideMultiKidTooltip(\'' + tooltipId + '\')" ' +
+        'onfocus="showMultiKidTooltip(event,' + i + ',\'' + wrapId + '\',\'' + tooltipId + '\')" onblur="hideMultiKidTooltip(\'' + tooltipId + '\')"/>';
+    });
+
+    series.forEach(function (s) {
+      var lastP = s.points[pointCount - 1];
+      svg += '<circle cx="' + xFor(pointCount - 1) + '" cy="' + yFor(lastP.value) + '" r="4" fill="' + s.color + '" stroke="#fcfcfb" stroke-width="2"/>';
+      svg += '<text x="' + (xFor(pointCount - 1) + 10) + '" y="' + (yFor(lastP.value) + 4) + '" text-anchor="start" class="kids-chart-total-label">' +
+        escapeHtml(s.avatar) + ' ' + formatMoney(lastP.value) + '</text>';
     });
 
     svg += '</svg>';
     wrap.innerHTML = svg;
-    _kidsChartData = kids;
   }
 
-  var _kidsChartData = [];
-
-  /** Rectangle path with rounded top-left/top-right corners only, square at the bottom. */
-  function roundedTopRectPath_(x, y, w, h, r) {
-    r = Math.max(0, Math.min(r, w / 2, h));
-    return 'M' + x + ',' + (y + h) +
-      ' L' + x + ',' + (y + r) +
-      ' Q' + x + ',' + y + ' ' + (x + r) + ',' + y +
-      ' L' + (x + w - r) + ',' + y +
-      ' Q' + (x + w) + ',' + y + ' ' + (x + w) + ',' + (y + r) +
-      ' L' + (x + w) + ',' + (y + h) +
-      ' Z';
-  }
-
-  function formatChartTotal_(v) {
-    return formatChartTick_(Math.round(v));
-  }
-
-  function truncateLabel_(str, maxLen) {
-    str = String(str || '');
-    return str.length > maxLen ? str.slice(0, maxLen - 1) + '…' : str;
-  }
-
-  function showKidsChartTooltip(evt, index) {
-    var kid = _kidsChartData[index];
-    if (!kid) return;
-    var tt = document.getElementById('kids-chart-tooltip');
-    var total = kid.savings + kid.investments;
-    tt.innerHTML =
-      '<div class="tt-title">' + escapeHtml(kid.avatar) + ' ' + escapeHtml(kid.displayName) + '</div>' +
-      '<div class="tt-row"><span class="tt-key" style="background:#2a78d6;"></span>Savings<span class="tt-value">' + formatMoney(kid.savings) + '</span></div>' +
-      '<div class="tt-row"><span class="tt-key" style="background:#1baf7a;"></span>Investments<span class="tt-value">' + formatMoney(kid.investments) + '</span></div>' +
-      '<div class="tt-row" style="margin-top:4px; border-top:1px solid #e1e0d9; padding-top:4px;"><span class="tt-key"></span>Total<span class="tt-value">' + formatMoney(total) + '</span></div>';
+  function showMultiKidTooltip(evt, index, wrapId, tooltipId) {
+    var series = _multiTrendDataByWrapId[wrapId] || [];
+    if (series.length === 0) return;
+    var tt = document.getElementById(tooltipId);
+    var rows = series.map(function (s) {
+      return '<div class="tt-row"><span class="tt-key" style="background:' + s.color + ';"></span>' +
+        escapeHtml(s.avatar) + ' ' + escapeHtml(s.displayName) + '<span class="tt-value">' + formatMoney(s.points[index].value) + '</span></div>';
+    }).join('');
+    tt.innerHTML = '<div class="tt-title">' + escapeHtml(series[0].points[index].label) + '</div>' + rows;
     tt.style.display = 'block';
-    positionKidsChartTooltip(evt);
+    positionMultiKidTooltip(evt, tooltipId);
   }
 
-  function positionKidsChartTooltip(evt) {
-    var tt = document.getElementById('kids-chart-tooltip');
+  function positionMultiKidTooltip(evt, tooltipId) {
+    var tt = document.getElementById(tooltipId);
     if (tt.style.display !== 'block') return;
     var x = (evt.clientX || 0) + 14;
     var y = (evt.clientY || 0) + 14;
-    tt.style.left = Math.min(x, window.innerWidth - 220) + 'px';
+    tt.style.left = Math.min(x, window.innerWidth - 240) + 'px';
     tt.style.top = y + 'px';
   }
 
-  function hideKidsChartTooltip() {
-    document.getElementById('kids-chart-tooltip').style.display = 'none';
+  function hideMultiKidTooltip(tooltipId) {
+    document.getElementById(tooltipId).style.display = 'none';
   }
 
   function loadPendingApprovals() {
@@ -414,6 +354,9 @@
           '<button class="danger" onclick="rejectTxn(this, \'' + t.TransactionId + '\')">Reject</button></td></tr>';
       }).join('');
       document.getElementById('admin-pending-rows').innerHTML = rows || '<tr><td colspan="5" class="muted">Nothing pending.</td></tr>';
+      var badge = document.getElementById('fab-approvals-badge');
+      if (badge) badge.classList.toggle('hidden', pending.length === 0);
+      if (badge && pending.length > 0) badge.textContent = pending.length > 99 ? '99+' : String(pending.length);
     });
   }
 

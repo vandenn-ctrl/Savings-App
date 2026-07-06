@@ -18,7 +18,13 @@
     </div>
   </div>
 
+  <div id="version-info-badge" onclick="showVersionInfo()" title="What's new">i</div>
+
   <div id="fab-backdrop" onclick="closeFabMenu()"></div>
+  <div id="fab-quick-actions" class="hidden">
+    <button class="fab-quick-btn" onclick="goToApprovals()" title="Approvals">✓<span id="fab-approvals-badge" class="fab-badge hidden"></span></button>
+    <button class="fab-quick-btn" onclick="goToTransactions()" title="Transactions">+/&minus;</button>
+  </div>
   <div id="fab-root" class="hidden">
     <div id="fab-items"></div>
     <button id="fab-toggle" onclick="toggleFabMenu()" title="Menu">☰</button>
@@ -54,10 +60,12 @@
       var role = getRole();
       var topBar = document.getElementById('top-bar');
       var fabRoot = document.getElementById('fab-root');
+      var fabQuickActions = document.getElementById('fab-quick-actions');
 
       if (!token) {
         topBar.classList.add('hidden');
         fabRoot.classList.add('hidden');
+        fabQuickActions.classList.add('hidden');
         closeFabMenu();
         showLoginView();
         return;
@@ -65,6 +73,7 @@
 
       topBar.classList.remove('hidden');
       fabRoot.classList.remove('hidden');
+      fabQuickActions.classList.toggle('hidden', role !== 'ADMIN');
       applyTheme(getTheme());
       document.getElementById('top-bar-avatar').textContent = getAvatar();
       document.getElementById('top-bar-name').textContent = getDisplayName() || '';
@@ -191,36 +200,41 @@
       }
     }
 
-    /** The most-used actions for the current role -- these stay directly on the spiral. */
+    /** Admin's Approve and Transactions are fixed quick-buttons instead (see #fab-quick-actions), so the spiral is just this flat "everything else" list -- no More sub-level needed. */
+    function fabAdminMenuItems_() {
+      return [
+        { key: 'kids', icon: '👨‍👩‍👧‍👦', label: 'Kids', action: function () { adminShowTab('kids'); } },
+        { key: 'rates', icon: '💹', label: 'Rates', action: function () { adminShowTab('rates'); } },
+        { key: 'users', icon: '👤', label: 'Users', action: function () { adminShowTab('users'); } },
+        { key: 'manage', icon: '🛠️', label: 'Manage', action: function () { adminShowTab('manage'); } },
+        { key: 'communicate', icon: '💬', label: 'Communicate', action: function () { adminShowTab('communicate'); } },
+        { key: 'theme', icon: '⚙️', label: 'Theme', action: handleCustomizeTheme },
+        { key: 'switch', icon: '🔀', label: 'Switch User', action: handleSwitchUser },
+        { key: 'logout', icon: '🚪', label: 'Log out', action: handleLogout }
+      ];
+    }
+
+    /** Kid's most-used actions -- these stay directly on the spiral. */
     function fabTabItems_() {
-      var role = getRole();
-      return role === 'ADMIN' ? [
-        { key: 'approvals', icon: '✅', label: 'Approve', action: function () { adminShowTab('approvals'); } },
-        { key: 'communicate', icon: '💬', label: 'Communicate', action: function () { adminShowTab('communicate'); } }
-      ] : [
+      return [
         { key: 'invest', icon: '📈', label: 'Investments', action: function () { kidShowTab('invest'); } },
         { key: 'history', icon: '🕒', label: 'History', action: function () { kidShowTab('history'); } }
       ];
     }
 
-    /** Everything else -- tucked behind the "More" item instead of cluttering the main spiral. */
+    /** Everything else for a kid -- tucked behind the "More" item instead of cluttering the main spiral. */
     function fabMoreItems_() {
-      var role = getRole();
-      var items = role === 'ADMIN' ? [
-        { key: 'kids', icon: '👨‍👩‍👧‍👦', label: 'Kids', action: function () { adminShowTab('kids'); } },
-        { key: 'rates', icon: '💹', label: 'Rates', action: function () { adminShowTab('rates'); } },
-        { key: 'users', icon: '👤', label: 'Users', action: function () { adminShowTab('users'); } },
-        { key: 'manage', icon: '🛠️', label: 'Manage', action: function () { adminShowTab('manage'); } }
-      ] : [
-        { key: 'settings', icon: '🔧', label: 'Settings', action: function () { kidShowTab('settings'); } }
+      return [
+        { key: 'settings', icon: '🔧', label: 'Settings', action: function () { kidShowTab('settings'); } },
+        { key: 'theme', icon: '⚙️', label: 'Theme', action: handleCustomizeTheme },
+        { key: 'switch', icon: '🔀', label: 'Switch User', action: handleSwitchUser },
+        { key: 'logout', icon: '🚪', label: 'Log out', action: handleLogout }
       ];
-      items.push({ key: 'theme', icon: '⚙️', label: 'Theme', action: handleCustomizeTheme });
-      items.push({ key: 'switch', icon: '🔀', label: 'Switch User', action: handleSwitchUser });
-      items.push({ key: 'logout', icon: '🚪', label: 'Log out', action: handleLogout });
-      return items;
     }
 
     function fabMenuItems_() {
+      if (getRole() === 'ADMIN') return fabAdminMenuItems_();
+
       if (_fabMenuLevel === 'more') {
         return [{ key: '__back', icon: '⬅️', label: 'Back', action: function () { _fabMenuLevel = 'main'; renderFabMenu(); } }]
           .concat(fabMoreItems_());
@@ -228,7 +242,36 @@
       return fabTabItems_().concat([{ key: '__more', icon: '⋯', label: 'More', action: function () { _fabMenuLevel = 'more'; renderFabMenu(); } }]);
     }
 
-    var _fabTabKeys = ['approvals', 'kids', 'rates', 'users', 'manage', 'communicate', 'invest', 'history', 'settings'];
+    var _fabTabKeys = ['kids', 'rates', 'users', 'manage', 'communicate', 'invest', 'history', 'settings'];
+
+    function goToApprovals() {
+      adminShowTab('approvals');
+    }
+
+    function goToTransactions() {
+      adminShowTab('manage');
+      var panel = document.getElementById('admin-transactions-panel');
+      var toggleBtn = document.getElementById('manage-transactions-toggle-btn');
+      if (panel && panel.classList.contains('hidden')) {
+        panel.classList.remove('hidden');
+        if (toggleBtn) toggleBtn.textContent = 'Hide all transactions ▴';
+        if (typeof loadTransactionsTab === 'function') loadTransactionsTab();
+      }
+    }
+
+    /** Puts a pending-approval count on the ✓ quick-button so it signals there's something to review, not just a static icon. */
+    function refreshApprovalsBadge() {
+      callAuthed('listPendingTransactions', [], function (pending) {
+        var badge = document.getElementById('fab-approvals-badge');
+        if (!badge) return;
+        if (pending.length > 0) {
+          badge.textContent = pending.length > 99 ? '99+' : String(pending.length);
+          badge.classList.remove('hidden');
+        } else {
+          badge.classList.add('hidden');
+        }
+      });
+    }
 
     /**
      * Positions each item along a spiral (growing angle + radius) fanning

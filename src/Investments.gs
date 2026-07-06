@@ -361,3 +361,14 @@ function getInvestmentEarningsHistory(token) {
   var user = validateSession(token);
   return buildInvestmentEarningsHistory_(user.UserId);
 }
+
+/** Admin-only: every kid's estimated investment earnings history, for the combined Home-tab chart. */
+function getAllKidsInvestmentEarningsHistory(token) {
+  var admin = validateSession(token);
+  requireAdmin_(admin);
+  var kids = findWhere(SHEETS.USERS, function (u) { return u.Role === ROLE.KID; });
+  return kids.map(function (u) {
+    var history = buildInvestmentEarningsHistory_(u.UserId);
+    return { userId: u.UserId, displayName: u.DisplayName, avatar: u.Avatar || DEFAULT_AVATAR, points: history.points };
+  });
+}

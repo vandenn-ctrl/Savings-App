@@ -169,11 +169,33 @@
   .top-bar-role-pill.role-ADMIN { background: #ffe4b8; color: #7a4a00; }
   .top-bar-role-pill.role-KID { background: #d9e8ff; color: #1c4c8c; }
 
-  /* --- Kids savings/investments stacked chart ------------------------- */
-  .kids-chart-legend { display: flex; gap: 16px; margin-bottom: 10px; font-size: 13px; color: #52514e; }
-  .kids-chart-legend .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
-  .kids-chart-legend .swatch-savings { background: #2a78d6; }
-  .kids-chart-legend .swatch-investments { background: #1baf7a; }
+  /* --- Version "what's new" badge: present on every page (Login included) --- */
+  #version-info-badge {
+    position: fixed;
+    top: 12px;
+    right: 12px;
+    z-index: 1300;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--color-card);
+    border: 2px solid var(--color-muted);
+    color: var(--color-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    font-style: italic;
+    font-family: Georgia, 'Times New Roman', serif;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+    user-select: none;
+  }
+
+  /* --- Kids chart shared chrome (legend, gridlines, tooltip) ----------- */
+  .kids-chart-legend { display: flex; gap: 16px; margin-bottom: 10px; font-size: 13px; color: #52514e; flex-wrap: wrap; align-items: center; }
+  .kids-chart-legend .line-key { display: inline-block; width: 18px; height: 0; border-top: 2px solid; margin-right: 6px; vertical-align: middle; }
 
   .kids-chart-wrap { overflow-x: auto; }
   .kids-chart-svg text { font-family: inherit; }
@@ -182,11 +204,6 @@
   .kids-chart-axis-label { fill: #898781; font-size: 11px; }
   .kids-chart-category-label { fill: #52514e; font-size: 12px; }
   .kids-chart-total-label { fill: #0b0b0b; font-size: 12px; font-weight: 600; }
-  .kids-chart-bar-savings { fill: #2a78d6; }
-  .kids-chart-bar-investments { fill: #1baf7a; }
-  .kids-chart-bar-savings, .kids-chart-bar-investments { cursor: pointer; }
-  .kids-chart-hit:hover ~ .kids-chart-bar-savings,
-  .kids-chart-bar-savings:hover, .kids-chart-bar-investments:hover { opacity: 0.85; }
 
   .kids-chart-tooltip {
     position: fixed;
@@ -229,6 +246,48 @@
   body.fab-menu-open #fab-backdrop { opacity: 1; pointer-events: auto; }
 
   #fab-root { position: fixed; right: 20px; bottom: 20px; z-index: 1200; }
+
+  #fab-quick-actions {
+    position: fixed;
+    right: 20px;
+    bottom: 92px;
+    z-index: 1200;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .fab-quick-btn {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: var(--color-card);
+    color: var(--color-text);
+    border: none;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+    font-size: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    position: relative;
+  }
+  .fab-badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    background: var(--color-danger);
+    color: white;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
 
   #fab-toggle {
     width: 56px;

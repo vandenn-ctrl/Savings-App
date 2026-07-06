@@ -282,4 +282,37 @@
     if (v >= 1000) return '$' + (v / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 }) + 'K';
     return '$' + v.toLocaleString();
   }
+
+  /**
+   * Bumped by hand with every push, so a quick glance at the "i" badge
+   * (present on every page, including Login) tells you whether a deploy
+   * actually took -- if you just pushed and this still shows the old
+   * date/notes, the deploy or the browser cache is stale, not the
+   * underlying feature.
+   */
+  var APP_VERSION_INFO = {
+    version: 'v1.13',
+    date: '2026-07-06',
+    notes: [
+      'Version badge moved to an "i" icon, present on every page (not just Login)',
+      'Admin Home: one combined savings chart + one investment-earnings chart, all kids at once',
+      'Admin FAB: two fixed buttons (+/- transactions, check approvals w/ badge) + hamburger for the rest',
+      'Removed the Home tab Actions button grid',
+      'Savings chart now shows past + current month (weekly points) with an explicit "interest earned" figure',
+      'New separate Investment earnings chart on the kid\'s Investments tab',
+      'Savings request compacted into a single +/- button',
+      'Admin can edit a buy/sell\'s price after the fact, not just quantity',
+      'Communicate tab: Inbox / Sent / Drafts / Compose',
+      'Kids can message their parent outside of a transaction'
+    ]
+  };
+
+  function showVersionInfo() {
+    showModal({
+      title: 'What\'s new -- ' + APP_VERSION_INFO.version + ' (' + APP_VERSION_INFO.date + ')',
+      bodyText: APP_VERSION_INFO.notes.map(function (n) { return '- ' + n; }).join('\n'),
+      fields: [],
+      confirmLabel: 'Close'
+    });
+  }
 </script>
