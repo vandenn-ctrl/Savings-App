@@ -154,3 +154,22 @@ function sendMessageToParent(token, message) {
 
   return { ok: true };
 }
+
+/**
+ * Admin-only: every KID_MESSAGE, newest first, joined with display name --
+ * the in-app "comms area" for the Manage tab, so kid messages are visible
+ * even if the email notification doesn't reach the admin's inbox.
+ */
+function listKidMessages(token) {
+  var admin = validateSession(token);
+  requireAdmin_(admin);
+
+  var messages = findWhere(SHEETS.TRANSACTIONS, function (t) { return t.Type === TRANSACTION_TYPE.KID_MESSAGE; });
+  var users = getAllRows(SHEETS.USERS);
+  var nameById = {};
+  users.forEach(function (u) { nameById[u.UserId] = u.DisplayName; });
+
+  messages.forEach(function (m) { m.displayName = nameById[m.UserId] || m.UserId; });
+  messages.sort(function (a, b) { return toDateObject_(b.RequestedAt) - toDateObject_(a.RequestedAt); });
+  return messages;
+}

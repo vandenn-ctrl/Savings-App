@@ -116,6 +116,14 @@
 
   <div id="admin-tab-manage" class="hidden">
     <div class="card">
+      <h3>Messages from kids</h3>
+      <table>
+        <thead><tr><th>Date</th><th>Kid</th><th>Message</th></tr></thead>
+        <tbody id="admin-messages-rows"></tbody>
+      </table>
+    </div>
+
+    <div class="card">
       <h3>Reset access code</h3>
       <label for="manage-reset-user">Family member</label>
       <select id="manage-reset-user"></select>
@@ -718,6 +726,14 @@
       resetSelect.innerHTML = users.map(function (u) {
         return '<option value="' + u.userId + '">' + escapeHtml(u.avatar || '🙂') + ' ' + escapeHtml(u.displayName) + '</option>';
       }).join('');
+    });
+
+    callAuthed('listKidMessages', [], function (messages) {
+      var rows = messages.map(function (m) {
+        return '<tr><td>' + escapeHtml(m.RequestedAt) + '</td><td>' + escapeHtml(m.displayName || m.UserId) +
+          '</td><td>' + escapeHtml(m.Notes || '') + '</td></tr>';
+      }).join('');
+      document.getElementById('admin-messages-rows').innerHTML = rows || '<tr><td colspan="3" class="muted">No messages yet.</td></tr>';
     });
   }
 
