@@ -1,6 +1,17 @@
 <div id="view-kid" class="app-shell hidden">
   <div id="kid-tab-overview">
     <div class="card">
+      <h3>Savings over time</h3>
+      <div class="savings-hero-figure" id="kid-savings-hero">$0.00</div>
+      <div class="savings-chart-legend">
+        <span><span class="line-key"></span>Actual</span>
+        <span><span class="line-key line-key-projected"></span>Projected (interest only)</span>
+      </div>
+      <div id="kid-savings-chart-wrap" class="kids-chart-wrap"></div>
+    </div>
+    <div id="savings-chart-tooltip" class="kids-chart-tooltip"></div>
+
+    <div class="card">
       <h2>Overview</h2>
       <div class="stat-row">
         <div class="stat-tile">
@@ -22,16 +33,6 @@
       </div>
       <p class="muted">Current savings rate: <span id="kid-rate">--</span>% APY</p>
     </div>
-
-    <div class="card">
-      <h3>Savings over time</h3>
-      <div class="savings-chart-legend">
-        <span><span class="line-key"></span>Actual</span>
-        <span><span class="line-key line-key-projected"></span>Projected (interest only)</span>
-      </div>
-      <div id="kid-savings-chart-wrap" class="kids-chart-wrap"></div>
-    </div>
-    <div id="savings-chart-tooltip" class="kids-chart-tooltip"></div>
 
     <div class="card">
       <h3>Request a savings transaction</h3>
@@ -61,10 +62,12 @@
   <div id="kid-tab-invest" class="hidden">
     <div class="card">
       <h3>Holdings</h3>
-      <table>
-        <thead><tr><th>Ticker</th><th>Qty</th><th>Avg cost</th><th>Price</th><th>Value</th><th>Gain/Loss</th></tr></thead>
-        <tbody id="kid-holdings-rows"></tbody>
-      </table>
+      <div style="overflow-x: auto;">
+        <table>
+          <thead><tr><th>Ticker</th><th>Amount invested</th><th>Shares purchased</th><th>Average price per share</th><th>Price</th><th>Value</th><th>Gain/Loss</th></tr></thead>
+          <tbody id="kid-holdings-rows"></tbody>
+        </table>
+      </div>
     </div>
     <div class="card">
       <h3>Buy</h3>
@@ -158,14 +161,16 @@
       document.getElementById('kid-statement-day').value = summary.statementDay || '';
 
       var rows = summary.holdings.map(function (h) {
-        return '<tr><td>' + escapeHtml(h.ticker) + '</td><td>' + h.quantity + '</td><td>' +
+        var amountInvested = h.quantity * h.avgCostBasis;
+        return '<tr><td>' + escapeHtml(h.ticker) + '</td><td>' + formatMoney(amountInvested) + '</td><td>' + h.quantity + '</td><td>' +
           formatMoney(h.avgCostBasis) + '</td><td>' + formatMoney(h.currentPrice) + '</td><td>' +
           formatMoney(h.marketValue) + '</td><td>' + formatMoney(h.unrealizedGainLoss) + '</td></tr>';
       }).join('');
-      document.getElementById('kid-holdings-rows').innerHTML = rows || '<tr><td colspan="6" class="muted">No holdings yet.</td></tr>';
+      document.getElementById('kid-holdings-rows').innerHTML = rows || '<tr><td colspan="7" class="muted">No holdings yet.</td></tr>';
     });
 
     callAuthed('getSavingsHistory', [], function (history) {
+      document.getElementById('kid-savings-hero').textContent = formatMoney(history.currentBalance);
       renderSavingsChart(history.points);
     });
   }
@@ -200,7 +205,7 @@
     var minV = Math.min(0, Math.min.apply(null, values));
     var maxV = Math.max.apply(null, values);
 
-    var chartHeight = 180, topPad = 28, bottomPad = 24, leftPad = 56, rightPad = 16;
+    var chartHeight = 220, topPad = 32, bottomPad = 24, leftPad = 56, rightPad = 16;
     var colWidth = 46;
     var width = leftPad + rightPad + colWidth * (points.length - 1);
     var height = topPad + chartHeight + bottomPad;
