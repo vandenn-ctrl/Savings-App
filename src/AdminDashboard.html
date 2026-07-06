@@ -5,8 +5,7 @@
     <button id="admin-tab-btn-kids" onclick="adminShowTab('kids')"><span class="tab-icon">👨‍👩‍👧‍👦</span><span class="tab-label">Kids</span></button>
     <button id="admin-tab-btn-rates" onclick="adminShowTab('rates')"><span class="tab-icon">💹</span><span class="tab-label">Rates</span></button>
     <button id="admin-tab-btn-users" onclick="adminShowTab('users')"><span class="tab-icon">👤</span><span class="tab-label">Users</span></button>
-    <button id="admin-tab-btn-transactions" onclick="adminShowTab('transactions')"><span class="tab-icon">📋</span><span class="tab-label">Transactions</span></button>
-    <button id="admin-tab-btn-communication" onclick="adminShowTab('communication')"><span class="tab-icon">✉️</span><span class="tab-label">Communication</span></button>
+    <button id="admin-tab-btn-manage" onclick="adminShowTab('manage')"><span class="tab-icon">🛠️</span><span class="tab-label">Manage</span></button>
   </div>
 
   <div id="admin-tab-overview">
@@ -137,7 +136,7 @@
     </div>
   </div>
 
-  <div id="admin-tab-transactions" class="hidden">
+  <div id="admin-tab-manage" class="hidden">
     <div class="card">
       <h2>All transactions</h2>
       <p class="muted">Edit corrects the amount/quantity and note; if the transaction was already approved, its balance/holdings effect is automatically reversed and reapplied. Delete removes it entirely (and reverses its effect, if approved).</p>
@@ -146,9 +145,7 @@
         <tbody id="admin-transactions-rows"></tbody>
       </table>
     </div>
-  </div>
 
-  <div id="admin-tab-communication" class="hidden">
     <div class="card">
       <h2>Send an email</h2>
       <label for="comm-target-user">About which family member? (fills in their email; needed for the balance/investment/history blocks below)</label>
@@ -183,7 +180,7 @@
   var _adminPendingCache = [];
 
   function adminShowTab(name) {
-    ['overview', 'approvals', 'kids', 'rates', 'users', 'transactions', 'communication'].forEach(function (t) {
+    ['overview', 'approvals', 'kids', 'rates', 'users', 'manage'].forEach(function (t) {
       document.getElementById('admin-tab-' + t).classList.toggle('hidden', t !== name);
       document.getElementById('admin-tab-btn-' + t).classList.toggle('active', t === name);
     });
@@ -192,8 +189,7 @@
     if (name === 'kids') loadKidsOverview();
     if (name === 'rates') loadRatesTab();
     if (name === 'users') loadUsersTab();
-    if (name === 'transactions') loadTransactionsTab();
-    if (name === 'communication') loadCommunicationTab();
+    if (name === 'manage') { loadTransactionsTab(); loadCommunicationTab(); }
   }
 
   function loadAdminDashboard() {
@@ -540,23 +536,54 @@
         document.getElementById('admin-kids-rows').innerHTML = '<tr><td colspan="5" class="muted">No kids yet.</td></tr>';
         return;
       }
-      var rowsHtml = [];
+      var rowsHtml = new Array(kids.length); // indexed by position, not completion order
       var remaining = kids.length;
-      kids.forEach(function (kid) {
+      kids.forEach(function (kid, index) {
         callAuthed('getUserSummary', [kid.userId], function (summary) {
-          rowsHtml.push({
-            order: kid.userId,
-            html: '<tr><td>' + escapeHtml(kid.avatar || '🙂') + ' ' + escapeHtml(kid.displayName) + '</td><td>' + formatMoney(summary.savings.cashBalance) +
-              '</td><td>' + formatMoney(summary.holdingsValue) + '</td><td>' + formatMoney(summary.netWorth) + '</td>' +
-              '<td><button onclick="adminEnterTransaction(this, \'' + kid.userId + '\', \'' + escapeHtml(kid.displayName) + '\')">Enter transaction</button> ' +
-              '<button class="secondary" onclick="promptResetPasscode(this, \'' + kid.userId + '\')">Reset code</button></td></tr>'
-          });
+          rowsHtml[index] =
+            '<tr><td>' + escapeHtml(kid.avatar || '🙂') + ' ' + escapeHtml(kid.displayName) + '</td><td>' + formatMoney(summary.savings.cashBalance) +
+            '</td><td>' + formatMoney(summary.holdingsValue) + '</td><td>' + formatMoney(summary.netWorth) + '</td>' +
+            '<td><button onclick="adminEnterTransaction(this, \'' + kid.userId + '\', \'' + escapeHtml(kid.displayName) + '\')">Enter transaction</button> ' +
+            '<button class="secondary" onclick="toggleKidHistory(this, \'' + kid.userId + '\')">View history</button> ' +
+            '<button class="secondary" onclick="promptResetPasscode(this, \'' + kid.userId + '\')">Reset code</button></td></tr>' +
+            '<tr id="kid-history-row-' + kid.userId + '" class="hidden"><td colspan="5" id="kid-history-cell-' + kid.userId + '"></td></tr>';
           remaining--;
           if (remaining === 0) {
-            document.getElementById('admin-kids-rows').innerHTML = rowsHtml.map(function (r) { return r.html; }).join('');
+            document.getElementById('admin-kids-rows').innerHTML = rowsHtml.join('');
           }
         });
       });
+    });
+  }
+
+  /** Toggles an inline expanded row under a kid showing their full transaction history. */
+  function toggleKidHistory(button, userId) {
+    var row = document.getElementById('kid-history-row-' + userId);
+    var isOpen = !row.classList.contains('hidden');
+    if (isOpen) {
+      row.classList.add('hidden');
+      button.textContent = 'View history';
+      return;
+    }
+    button.textContent = 'Hide history';
+    row.classList.remove('hidden');
+
+    var cell = document.getElementById('kid-history-cell-' + userId);
+    cell.innerHTML = '<p class="muted">Loading…</p>';
+    callAuthed('listAllTransactions', [], function (all) {
+      var mine = all.filter(function (t) { return t.UserId === userId; });
+      if (mine.length === 0) {
+        cell.innerHTML = '<p class="muted">No transactions yet.</p>';
+        return;
+      }
+      var rows = mine.map(function (t) {
+        var details = t.Ticker ? (t.Ticker + ' x ' + t.Quantity) : formatMoney(t.Amount);
+        return '<tr><td>' + escapeHtml(t.RequestedAt) + '</td><td>' + escapeHtml(t.Type) + '</td><td>' +
+          escapeHtml(details) + '</td><td><span class="badge badge-' + t.Status + '">' + t.Status + '</span></td><td>' +
+          escapeHtml(t.ReviewNote || '') + '</td></tr>';
+      }).join('');
+      cell.innerHTML = '<table><thead><tr><th>Date</th><th>Type</th><th>Details</th><th>Status</th><th>Comment</th></tr></thead><tbody>' +
+        rows + '</tbody></table>';
     });
   }
 
