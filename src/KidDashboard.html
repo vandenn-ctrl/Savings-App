@@ -24,6 +24,16 @@
     </div>
 
     <div class="card">
+      <h3>Savings over time</h3>
+      <div class="savings-chart-legend">
+        <span><span class="line-key"></span>Actual</span>
+        <span><span class="line-key line-key-projected"></span>Projected (interest only)</span>
+      </div>
+      <div id="kid-savings-chart-wrap" class="kids-chart-wrap"></div>
+    </div>
+    <div id="savings-chart-tooltip" class="kids-chart-tooltip"></div>
+
+    <div class="card">
       <h3>Request a savings transaction</h3>
       <div class="row">
         <div>
@@ -154,6 +164,119 @@
       }).join('');
       document.getElementById('kid-holdings-rows').innerHTML = rows || '<tr><td colspan="6" class="muted">No holdings yet.</td></tr>';
     });
+
+    callAuthed('getSavingsHistory', [], function (history) {
+      renderSavingsChart(history.points);
+    });
+  }
+
+  var _savingsChartPoints = [];
+
+  /**
+   * Self-contained SVG line+area chart: solid line + shaded area for the
+   * past 8 months plus the current (partial) month, then a dashed
+   * continuation (no area -- shading implies "what happened", dashing
+   * signals "projected") for the 4-month interest-only forecast. Same blue
+   * used for "Savings" in the admin's stacked kids chart, for a consistent
+   * color-to-metric mapping across the app.
+   */
+  function renderSavingsChart(points) {
+    var wrap = document.getElementById('kid-savings-chart-wrap');
+    if (!points || points.length === 0) {
+      wrap.innerHTML = '<p class="muted">No history yet.</p>';
+      return;
+    }
+    _savingsChartPoints = points;
+
+    var values = points.map(function (p) { return p.value; });
+    var minV = Math.min(0, Math.min.apply(null, values));
+    var maxV = Math.max.apply(null, values);
+
+    var chartHeight = 180, topPad = 28, bottomPad = 24, leftPad = 56, rightPad = 16;
+    var colWidth = 46;
+    var width = leftPad + rightPad + colWidth * (points.length - 1);
+    var height = topPad + chartHeight + bottomPad;
+
+    var step = niceChartStep_((maxV - minV) / 4 || 1);
+    var niceMax = Math.ceil(maxV / step) * step;
+    var niceMin = Math.floor(minV / step) * step;
+    var range = (niceMax - niceMin) || 1;
+    var scale = chartHeight / range;
+
+    function xFor(i) { return leftPad + i * colWidth; }
+    function yFor(v) { return topPad + chartHeight - (v - niceMin) * scale; }
+
+    var splitIndex = 0;
+    for (var i = 0; i < points.length; i++) { if (!points[i].projected) splitIndex = i; }
+    var lastIndex = points.length - 1;
+
+    var svg = '<svg class="kids-chart-svg" viewBox="0 0 ' + width + ' ' + height + '" width="' + width + '" height="' + height + '" role="img" aria-label="Savings balance, past 8 months and 4-month projection">';
+
+    for (var v = niceMin; v <= niceMax + 0.001; v += step) {
+      var y = yFor(v);
+      var isBaseline = Math.abs(v) < 0.001;
+      svg += '<line x1="' + leftPad + '" y1="' + y + '" x2="' + (width - rightPad) + '" y2="' + y +
+        '" class="' + (isBaseline ? 'kids-chart-baseline' : 'kids-chart-gridline') + '"/>';
+      svg += '<text x="' + (leftPad - 8) + '" y="' + (y + 4) + '" text-anchor="end" class="kids-chart-axis-label">' + formatChartTick_(v) + '</text>';
+    }
+
+    var areaPath = 'M' + xFor(0) + ',' + yFor(0);
+    for (var i = 0; i <= splitIndex; i++) areaPath += ' L' + xFor(i) + ',' + yFor(points[i].value);
+    areaPath += ' L' + xFor(splitIndex) + ',' + yFor(0) + ' Z';
+    svg += '<path d="' + areaPath + '" class="savings-chart-area"/>';
+
+    var actualLine = '';
+    for (var i = 0; i <= splitIndex; i++) actualLine += (i === 0 ? 'M' : ' L') + xFor(i) + ',' + yFor(points[i].value);
+    svg += '<path d="' + actualLine + '" class="savings-chart-line-actual" fill="none"/>';
+
+    if (splitIndex < lastIndex) {
+      var projLine = '';
+      for (var i = splitIndex; i <= lastIndex; i++) projLine += (i === splitIndex ? 'M' : ' L') + xFor(i) + ',' + yFor(points[i].value);
+      svg += '<path d="' + projLine + '" class="savings-chart-line-projected" fill="none"/>';
+    }
+
+    points.forEach(function (p, i) {
+      svg += '<text x="' + xFor(i) + '" y="' + (topPad + chartHeight + 18) + '" text-anchor="middle" class="kids-chart-axis-label">' + escapeHtml(p.label) + '</text>';
+      svg += '<rect x="' + (xFor(i) - colWidth / 2) + '" y="' + topPad + '" width="' + colWidth + '" height="' + chartHeight +
+        '" fill="transparent" tabindex="0" onmouseenter="showSavingsChartTooltip(event,' + i + ')" ' +
+        'onmousemove="positionSavingsChartTooltip(event)" onmouseleave="hideSavingsChartTooltip()" ' +
+        'onfocus="showSavingsChartTooltip(event,' + i + ')" onblur="hideSavingsChartTooltip()"/>';
+    });
+
+    svg += '<circle cx="' + xFor(splitIndex) + '" cy="' + yFor(points[splitIndex].value) + '" r="4" class="savings-chart-dot"/>';
+    svg += '<text x="' + xFor(splitIndex) + '" y="' + (yFor(points[splitIndex].value) - 10) + '" text-anchor="middle" class="kids-chart-total-label">' + formatMoney(points[splitIndex].value) + '</text>';
+
+    if (lastIndex !== splitIndex) {
+      svg += '<circle cx="' + xFor(lastIndex) + '" cy="' + yFor(points[lastIndex].value) + '" r="4" class="savings-chart-dot-projected"/>';
+      svg += '<text x="' + xFor(lastIndex) + '" y="' + (yFor(points[lastIndex].value) - 10) + '" text-anchor="middle" class="kids-chart-total-label">' + formatMoney(points[lastIndex].value) + '</text>';
+    }
+
+    svg += '</svg>';
+    wrap.innerHTML = svg;
+  }
+
+  function showSavingsChartTooltip(evt, index) {
+    var p = _savingsChartPoints[index];
+    if (!p) return;
+    var tt = document.getElementById('savings-chart-tooltip');
+    tt.innerHTML =
+      '<div class="tt-title">' + escapeHtml(p.label) + (p.projected ? ' (projected)' : '') + '</div>' +
+      '<div class="tt-row"><span class="tt-value">' + formatMoney(p.value) + '</span></div>';
+    tt.style.display = 'block';
+    positionSavingsChartTooltip(evt);
+  }
+
+  function positionSavingsChartTooltip(evt) {
+    var tt = document.getElementById('savings-chart-tooltip');
+    if (tt.style.display !== 'block') return;
+    var x = (evt.clientX || 0) + 14;
+    var y = (evt.clientY || 0) + 14;
+    tt.style.left = Math.min(x, window.innerWidth - 220) + 'px';
+    tt.style.top = y + 'px';
+  }
+
+  function hideSavingsChartTooltip() {
+    document.getElementById('savings-chart-tooltip').style.display = 'none';
   }
 
   var _kidHistoryCache = [];

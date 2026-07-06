@@ -409,10 +409,13 @@ function deleteTransaction(token, transactionId) {
 
 /**
  * Admin-only: edits a transaction's amount (savings/interest types) or
- * quantity (investment types), plus its note. If already APPROVED, its old
- * effect is reversed and the new effect applied atomically, using the same
- * price it was originally approved (or requested) at -- editing corrects
- * "how much", not "at what price".
+ * quantity and/or price (investment types), plus its note -- e.g. correcting
+ * a buy/sell that was placed at "market" once the actual fill price is
+ * known. If already APPROVED, its old effect is reversed and the new effect
+ * applied atomically using the corrected price; editing the price also marks
+ * the transaction as PRICE_SOURCE.MANUAL, and if it's still PENDING the
+ * correction is written to PriceAtRequest so it sticks through the eventual
+ * approval instead of being re-quoted from the market.
  */
 function editTransaction(token, transactionId, updates) {
   var admin = validateSession(token);
@@ -434,6 +437,12 @@ function editTransaction(token, transactionId, updates) {
     if (updates.notes !== undefined) rowUpdates.Notes = updates.notes;
 
     var price = Number(txn.PriceAtApproval || txn.PriceAtRequest);
+    if (isInvest && updates.price !== undefined && updates.price !== '') {
+      price = Number(updates.price);
+      if (isNaN(price) || price <= 0) throw new Error('Enter a valid price.');
+      rowUpdates.PriceSource = PRICE_SOURCE.MANUAL;
+      if (wasApproved) { rowUpdates.PriceAtApproval = price; } else { rowUpdates.PriceAtRequest = price; }
+    }
     var updatedTxn = {
       Type: txn.Type,
       UserId: txn.UserId,

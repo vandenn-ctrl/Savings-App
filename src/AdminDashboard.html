@@ -364,19 +364,6 @@
       ' Z';
   }
 
-  function niceChartStep_(roughStep) {
-    if (roughStep <= 0) return 1;
-    var mag = Math.pow(10, Math.floor(Math.log10(roughStep)));
-    var norm = roughStep / mag;
-    var niceNorm = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10;
-    return niceNorm * mag;
-  }
-
-  function formatChartTick_(v) {
-    if (v >= 1000) return '$' + (v / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 }) + 'K';
-    return '$' + v.toLocaleString();
-  }
-
   function formatChartTotal_(v) {
     return formatChartTick_(Math.round(v));
   }
@@ -523,13 +510,17 @@
       fields: isLogOnly
         ? [{ key: 'notes', label: 'Note', value: txn.Notes || '' }]
         : isInvest
-          ? [{ key: 'quantity', label: 'Quantity', type: 'number', value: String(txn.Quantity) }, { key: 'notes', label: 'Note', value: txn.Notes || '' }]
+          ? [
+              { key: 'quantity', label: 'Quantity', type: 'number', value: String(txn.Quantity) },
+              { key: 'price', label: 'Price per share', type: 'number', value: String(txn.PriceAtApproval || txn.PriceAtRequest) },
+              { key: 'notes', label: 'Note', value: txn.Notes || '' }
+            ]
           : [{ key: 'amount', label: 'Amount', type: 'number', value: String(txn.Amount) }, { key: 'notes', label: 'Note', value: txn.Notes || '' }],
       confirmLabel: 'Save changes'
     }).then(function (result) {
       if (!result.confirmed) return;
       var updates = { notes: result.values.notes };
-      if (isInvest) { updates.quantity = result.values.quantity; } else if (!isLogOnly) { updates.amount = result.values.amount; }
+      if (isInvest) { updates.quantity = result.values.quantity; updates.price = result.values.price; } else if (!isLogOnly) { updates.amount = result.values.amount; }
 
       callAuthed('editTransaction', [txnId, updates], function () {
         showError('Transaction updated.');

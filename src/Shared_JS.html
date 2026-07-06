@@ -268,4 +268,18 @@
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
     });
   }
+
+  /** Rounds a rough axis-tick step up to a "nice" 1/2/5x10^n value -- shared by every SVG chart. */
+  function niceChartStep_(roughStep) {
+    if (roughStep <= 0) return 1;
+    var mag = Math.pow(10, Math.floor(Math.log10(roughStep)));
+    var norm = roughStep / mag;
+    var niceNorm = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10;
+    return niceNorm * mag;
+  }
+
+  function formatChartTick_(v) {
+    if (v >= 1000) return '$' + (v / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 }) + 'K';
+    return '$' + v.toLocaleString();
+  }
 </script>

@@ -35,6 +35,25 @@ function lastDayOfMonth(year, monthIndexZeroBased) {
   return new Date(year, monthIndexZeroBased + 1, 0).getDate();
 }
 
+/** Returns midnight on the 1st of the given date's month. */
+function startOfMonth_(date) {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+/** Moves a date by n whole months (n may be negative), clamping the day-of-month if the target month is shorter. */
+function addMonths_(date, n) {
+  var targetMonthIndex = date.getMonth() + n;
+  var targetYear = date.getFullYear() + Math.floor(targetMonthIndex / 12);
+  var targetMonth = ((targetMonthIndex % 12) + 12) % 12;
+  var day = Math.min(date.getDate(), lastDayOfMonth(targetYear, targetMonth));
+  return new Date(targetYear, targetMonth, day);
+}
+
+/** Short month + 2-digit year, e.g. "Jul '26" -- used as the x-axis label on month-based charts. */
+function monthLabel_(date) {
+  return Utilities.formatDate(date, Session.getScriptTimeZone(), "MMM ''yy");
+}
+
 /**
  * Sheets tends to auto-convert date-looking strings written to a cell into
  * real Date objects on read-back. These two helpers normalize either shape

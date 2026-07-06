@@ -71,6 +71,72 @@ function getUserSummary(token, targetUserId) {
   return buildDashboardSummary_(target.object);
 }
 
+/** Cash effect of one approved transaction on a Savings balance; 0 for types that don't touch it (interest/message/email logs excepted, which are handled by their own case). */
+function savingsCashDelta_(t) {
+  switch (t.Type) {
+    case TRANSACTION_TYPE.SAVINGS_DEPOSIT:
+    case TRANSACTION_TYPE.INTEREST_POSTED:
+      return Number(t.Amount);
+    case TRANSACTION_TYPE.SAVINGS_WITHDRAWAL:
+      return -Number(t.Amount);
+    case TRANSACTION_TYPE.INVEST_BUY:
+      return -(Number(t.PriceAtApproval) * Number(t.Quantity));
+    case TRANSACTION_TYPE.INVEST_SELL:
+      return Number(t.PriceAtApproval) * Number(t.Quantity);
+    default:
+      return 0;
+  }
+}
+
+/** Sums cash deltas of every transaction at or before cutoff (sortedTxns must already be sorted ascending by _effectiveDate). */
+function balanceAsOf_(sortedTxns, cutoff) {
+  var sum = 0;
+  for (var i = 0; i < sortedTxns.length; i++) {
+    if (sortedTxns[i]._effectiveDate > cutoff) break;
+    sum += savingsCashDelta_(sortedTxns[i]);
+  }
+  return sum;
+}
+
+/**
+ * Kid-facing: monthly savings-balance history for the past 8 months plus the
+ * current (partial) month, reconstructed by replaying every approved
+ * cash-affecting transaction from a zero opening balance -- there's no
+ * separately-stored balance history, so this is derived fresh each call.
+ * Followed by a 4-month forward projection assuming no further deposits,
+ * withdrawals, buys or sells -- interest only, compounding daily at the
+ * kid's current rate exactly like the real nightly accrual job does, so the
+ * projection is what actually happens if nothing else changes.
+ */
+function getSavingsHistory(token) {
+  var user = validateSession(token);
+  var rate = getCurrentRate(user.UserId);
+  var today = nowDate();
+
+  var cashTxns = findWhere(SHEETS.TRANSACTIONS, function (t) {
+    return t.UserId === user.UserId && t.Status === TRANSACTION_STATUS.APPROVED;
+  });
+  cashTxns.forEach(function (t) { t._effectiveDate = toDateObject_(t.ReviewedAt || t.RequestedAt); });
+  cashTxns.sort(function (a, b) { return a._effectiveDate - b._effectiveDate; });
+
+  var points = [];
+  for (var i = 8; i >= 0; i--) {
+    var monthStart = addMonths_(startOfMonth_(today), -i);
+    var cutoff = (i === 0) ? today : addDays(addMonths_(monthStart, 1), -1);
+    points.push({ label: monthLabel_(monthStart), value: roundMoney(balanceAsOf_(cashTxns, cutoff)), projected: false });
+  }
+
+  var baselineBalance = points[points.length - 1].value;
+  for (var p = 1; p <= 4; p++) {
+    var targetDate = addMonths_(today, p);
+    var days = daysBetween(today, targetDate);
+    var projectedBalance = baselineBalance * Math.pow(1 + rate / CONFIG.DAILY_ACCRUAL_DAY_COUNT, days);
+    points.push({ label: monthLabel_(targetDate), value: roundMoney(projectedBalance), projected: true });
+  }
+
+  return { points: points, currentBalance: baselineBalance, rate: rate };
+}
+
 /** Kid: update their own statement delivery preference. */
 function setStatementPreference(token, frequency, day) {
   var user = validateSession(token);
