@@ -155,7 +155,7 @@
     callAuthed('listMyTransactions', [], function (transactions) {
       _kidHistoryCache = transactions;
       var rows = transactions.map(function (t) {
-        var details = t.Ticker ? (t.Ticker + ' x ' + t.Quantity) : formatMoney(t.Amount);
+        var details = t.Type === 'EMAIL_SENT' ? 'Email sent' : (t.Ticker ? (t.Ticker + ' x ' + t.Quantity) : formatMoney(t.Amount));
         return '<tr><td>' + escapeHtml(t.RequestedAt) + '</td><td>' + escapeHtml(t.Type) + '</td><td>' +
           escapeHtml(details) + '</td><td><span class="badge badge-' + t.Status + '">' + t.Status + '</span></td><td>' +
           '<button class="secondary" onclick="viewKidTxnDetail(\'' + t.TransactionId + '\')">Details</button></td></tr>';
@@ -166,6 +166,9 @@
 
   /** Builds a multi-line detail summary for a transaction, including the parent's approve/reject comment if any. */
   function buildKidTxnDetailText_(t) {
+    if (t.Type === 'EMAIL_SENT') {
+      return ['Type: Email sent', 'Date: ' + t.RequestedAt, t.Notes || ''].join('\n');
+    }
     var lines = ['Type: ' + t.Type, 'Requested: ' + t.RequestedAt, 'Status: ' + t.Status];
     if (t.Ticker) {
       lines.push('Ticker: ' + t.Ticker, 'Quantity: ' + t.Quantity, 'Price: ' + formatMoney(t.PriceAtApproval || t.PriceAtRequest));

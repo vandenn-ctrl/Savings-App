@@ -452,7 +452,7 @@ function editTransaction(token, transactionId, updates) {
     } else {
       var newAmount = (updates.amount !== undefined && updates.amount !== '')
         ? roundMoney(Number(updates.amount)) : Number(txn.Amount);
-      if (newAmount <= 0) throw new Error('Enter a valid amount.');
+      if (txn.Type !== TRANSACTION_TYPE.EMAIL_SENT && newAmount <= 0) throw new Error('Enter a valid amount.');
       rowUpdates.Amount = newAmount;
       updatedTxn.Amount = newAmount;
     }

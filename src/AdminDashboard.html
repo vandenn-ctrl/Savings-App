@@ -401,6 +401,9 @@
 
   /** Builds a human-readable multi-line summary of a pending transaction, for the approve/reject prompts. */
   function buildTransactionDetailText_(t) {
+    if (t.Type === 'EMAIL_SENT') {
+      return ['Kid: ' + (t.displayName || t.UserId), 'Type: Email sent', 'Sent: ' + t.RequestedAt, t.Notes || ''].join('\n');
+    }
     var lines = [
       'Kid: ' + (t.displayName || t.UserId),
       'Type: ' + t.Type,
@@ -453,9 +456,11 @@
     callAuthed('listAllTransactions', [], function (all) {
       _adminAllTxnsCache = all;
       var rows = all.map(function (t) {
-        var details = t.Ticker
-          ? (t.Ticker + ' x ' + t.Quantity + (t.PriceSource === 'MANUAL' ? ' (manual price)' : ''))
-          : formatMoney(t.Amount);
+        var details = t.Type === 'EMAIL_SENT'
+          ? (t.Notes || 'Email sent')
+          : (t.Ticker
+            ? (t.Ticker + ' x ' + t.Quantity + (t.PriceSource === 'MANUAL' ? ' (manual price)' : ''))
+            : formatMoney(t.Amount));
         return '<tr><td>' + escapeHtml(t.RequestedAt) + '</td><td>' + escapeHtml(t.displayName || t.UserId) +
           '</td><td>' + escapeHtml(t.Type) + '</td><td>' + escapeHtml(details) + '</td><td>' +
           '<span class="badge badge-' + t.Status + '">' + t.Status + '</span></td><td>' +
@@ -477,18 +482,21 @@
     var txn = findAnyTxn_(txnId);
     if (!txn) { showError('Transaction not found -- try reloading the tab.'); return; }
     var isInvest = txn.Type === 'INVEST_BUY' || txn.Type === 'INVEST_SELL';
+    var isEmail = txn.Type === 'EMAIL_SENT';
 
     showModal({
       title: 'Edit transaction',
-      bodyText: buildTransactionDetailText_(txn) + (txn.Status === 'APPROVED' ? '\n\nThis was already approved -- its balance/holdings effect will be reversed and reapplied with the new values.' : ''),
-      fields: isInvest
-        ? [{ key: 'quantity', label: 'Quantity', type: 'number', value: String(txn.Quantity) }, { key: 'notes', label: 'Note', value: txn.Notes || '' }]
-        : [{ key: 'amount', label: 'Amount', type: 'number', value: String(txn.Amount) }, { key: 'notes', label: 'Note', value: txn.Notes || '' }],
+      bodyText: buildTransactionDetailText_(txn) + (txn.Status === 'APPROVED' && !isEmail ? '\n\nThis was already approved -- its balance/holdings effect will be reversed and reapplied with the new values.' : ''),
+      fields: isEmail
+        ? [{ key: 'notes', label: 'Note', value: txn.Notes || '' }]
+        : isInvest
+          ? [{ key: 'quantity', label: 'Quantity', type: 'number', value: String(txn.Quantity) }, { key: 'notes', label: 'Note', value: txn.Notes || '' }]
+          : [{ key: 'amount', label: 'Amount', type: 'number', value: String(txn.Amount) }, { key: 'notes', label: 'Note', value: txn.Notes || '' }],
       confirmLabel: 'Save changes'
     }).then(function (result) {
       if (!result.confirmed) return;
       var updates = { notes: result.values.notes };
-      if (isInvest) { updates.quantity = result.values.quantity; } else { updates.amount = result.values.amount; }
+      if (isInvest) { updates.quantity = result.values.quantity; } else if (!isEmail) { updates.amount = result.values.amount; }
 
       callAuthed('editTransaction', [txnId, updates], function () {
         showError('Transaction updated.');
@@ -562,7 +570,7 @@
         return;
       }
       var rows = mine.map(function (t) {
-        var details = t.Ticker ? (t.Ticker + ' x ' + t.Quantity) : formatMoney(t.Amount);
+        var details = t.Type === 'EMAIL_SENT' ? (t.Notes || 'Email sent') : (t.Ticker ? (t.Ticker + ' x ' + t.Quantity) : formatMoney(t.Amount));
         return '<tr><td>' + escapeHtml(t.RequestedAt) + '</td><td>' + escapeHtml(t.Type) + '</td><td>' +
           escapeHtml(details) + '</td><td><span class="badge badge-' + t.Status + '">' + t.Status + '</span></td><td>' +
           escapeHtml(t.ReviewNote || '') + '</td></tr>';

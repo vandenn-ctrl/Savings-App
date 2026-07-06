@@ -19,6 +19,25 @@ function sendCustomEmail(token, params) {
 
   MailApp.sendEmail({ to: toEmail, subject: subject, htmlBody: html });
   logAudit_(admin.UserId, 'SEND_CUSTOM_EMAIL', 'User', (params && params.targetUserId) || '', { to: toEmail, subject: subject });
+
+  // Also surfaced as an auto-approved, zero-amount transaction row -- same
+  // pattern as INTEREST_POSTED -- so it shows up in that family member's
+  // history (kid's own History tab, admin's per-kid history, All transactions)
+  // without needing a dedicated "sent emails" view.
+  if (params && params.targetUserId) {
+    appendRow(SHEETS.TRANSACTIONS, {
+      TransactionId: newId('txn'),
+      UserId: params.targetUserId,
+      Type: TRANSACTION_TYPE.EMAIL_SENT,
+      Status: TRANSACTION_STATUS.APPROVED,
+      Amount: 0,
+      RequestedAt: toIsoString(nowDate()),
+      ReviewedBy: admin.UserId,
+      ReviewedAt: toIsoString(nowDate()),
+      Notes: 'To: ' + toEmail + ' -- Subject: ' + subject
+    });
+  }
+
   return { ok: true };
 }
 
@@ -65,7 +84,7 @@ function buildCustomEmailHtml_(params) {
 
   if (user && params.includeHistory) {
     var txns = findWhere(SHEETS.TRANSACTIONS, function (t) {
-      return t.UserId === user.UserId && t.Status === TRANSACTION_STATUS.APPROVED;
+      return t.UserId === user.UserId && t.Status === TRANSACTION_STATUS.APPROVED && t.Type !== TRANSACTION_TYPE.EMAIL_SENT;
     });
     txns.sort(function (a, b) { return toDateObject_(b.RequestedAt) - toDateObject_(a.RequestedAt); });
     txns = txns.slice(0, 10);
