@@ -13,7 +13,8 @@ var SHEETS = {
   WATCHLIST: 'Watchlist',
   SESSIONS: 'Sessions',
   STATEMENT_LOG: 'StatementLog',
-  AUDIT_LOG: 'AuditLog'
+  AUDIT_LOG: 'AuditLog',
+  EMAIL_DRAFTS: 'EmailDrafts'
 };
 
 // Column order also defines the header row written by Bootstrap.gs.
@@ -38,7 +39,9 @@ var COLUMNS = {
   Watchlist: ['Ticker', 'AssetClass', 'LivePrice', 'LastPrice', 'PriceUpdatedAt', 'Name', 'Currency'],
   Sessions: ['Token', 'UserId', 'CreatedAt', 'ExpiresAt', 'LastSeenAt'],
   StatementLog: ['LogId', 'UserId', 'PeriodStart', 'PeriodEnd', 'SentAt', 'Status', 'ErrorMessage'],
-  AuditLog: ['LogId', 'Timestamp', 'ActorUserId', 'Action', 'TargetType', 'TargetId', 'Details']
+  AuditLog: ['LogId', 'Timestamp', 'ActorUserId', 'Action', 'TargetType', 'TargetId', 'Details'],
+  EmailDrafts: ['DraftId', 'CreatedBy', 'TargetUserId', 'ToEmail', 'Subject', 'IncludeSavings',
+    'IncludeInvestments', 'IncludeHistory', 'CustomMessage', 'CreatedAt', 'UpdatedAt']
 };
 
 var DEFAULT_AVATAR = '🙂';

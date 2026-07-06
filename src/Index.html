@@ -145,15 +145,6 @@
       });
     }
 
-    function handleGoToEmail() {
-      adminShowTab('manage');
-      _fabActiveTab = 'manage';
-      setTimeout(function () {
-        var el = document.getElementById('manage-email-card');
-        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 50);
-    }
-
     function handleSwitchUser(button) {
       showModal({
         title: 'Switch User',
@@ -195,7 +186,7 @@
       return role === 'ADMIN' ? [
         { key: 'overview', icon: '🏠', label: 'Home', action: function () { adminShowTab('overview'); } },
         { key: 'approvals', icon: '✅', label: 'Approve', action: function () { adminShowTab('approvals'); } },
-        { key: 'email', icon: '✉️', label: 'Email', action: handleGoToEmail }
+        { key: 'communicate', icon: '💬', label: 'Communicate', action: function () { adminShowTab('communicate'); } }
       ] : [
         { key: 'overview', icon: '🏠', label: 'Home', action: function () { kidShowTab('overview'); } },
         { key: 'invest', icon: '📈', label: 'Investments', action: function () { kidShowTab('invest'); } },
@@ -228,7 +219,7 @@
       return fabTabItems_().concat([{ key: '__more', icon: '⋯', label: 'More', action: function () { _fabMenuLevel = 'more'; renderFabMenu(); } }]);
     }
 
-    var _fabTabKeys = ['overview', 'approvals', 'kids', 'rates', 'users', 'manage', 'invest', 'history', 'settings'];
+    var _fabTabKeys = ['overview', 'approvals', 'kids', 'rates', 'users', 'manage', 'communicate', 'invest', 'history', 'settings'];
 
     /**
      * Positions each item along a spiral (growing angle + radius) fanning

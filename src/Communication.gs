@@ -23,6 +23,12 @@ function sendCustomEmail(token, params) {
   MailApp.sendEmail({ to: toEmail, subject: subject, htmlBody: html });
   logAudit_(admin.UserId, 'SEND_CUSTOM_EMAIL', 'User', (params && params.targetUserId) || '', { to: toEmail, subject: subject });
 
+  // Sending a draft consumes it.
+  if (params && params.draftId) {
+    var draftRow = findRowById(SHEETS.EMAIL_DRAFTS, 'DraftId', params.draftId);
+    if (draftRow) getSheet_(SHEETS.EMAIL_DRAFTS).deleteRow(draftRow.rowIndex);
+  }
+
   // Also surfaced as an auto-approved, zero-amount transaction row -- same
   // pattern as INTEREST_POSTED -- so it shows up in that family member's
   // history (kid's own History tab, admin's per-kid history, All transactions)
@@ -172,4 +178,82 @@ function listKidMessages(token) {
   messages.forEach(function (m) { m.displayName = nameById[m.UserId] || m.UserId; });
   messages.sort(function (a, b) { return toDateObject_(b.RequestedAt) - toDateObject_(a.RequestedAt); });
   return messages;
+}
+
+/**
+ * Admin-only: every sent email (EMAIL_SENT transaction rows), newest first,
+ * with the "To: ... -- Subject: ..." Notes string parsed back into separate
+ * `to`/`subject` fields for the Communicate tab's Sent list.
+ */
+function listSentEmails(token) {
+  var admin = validateSession(token);
+  requireAdmin_(admin);
+
+  var sent = findWhere(SHEETS.TRANSACTIONS, function (t) { return t.Type === TRANSACTION_TYPE.EMAIL_SENT; });
+  sent.sort(function (a, b) { return toDateObject_(b.RequestedAt) - toDateObject_(a.RequestedAt); });
+
+  return sent.map(function (t) {
+    var match = /^To: (.*) -- Subject: (.*)$/.exec(t.Notes || '');
+    return {
+      RequestedAt: t.RequestedAt,
+      to: match ? match[1] : '',
+      subject: match ? match[2] : (t.Notes || '')
+    };
+  });
+}
+
+/**
+ * Admin-only: creates or updates a draft email. Pass draftId to update an
+ * existing draft, or '' / null to create a new one. Returns the saved draft
+ * row (including its DraftId) so the client can keep editing the same draft.
+ */
+function saveEmailDraft(token, draftId, params) {
+  var admin = validateSession(token);
+  requireAdmin_(admin);
+  params = params || {};
+
+  var row = {
+    CreatedBy: admin.UserId,
+    TargetUserId: params.targetUserId || '',
+    ToEmail: params.toEmail || '',
+    Subject: params.subject || '',
+    IncludeSavings: !!params.includeSavings,
+    IncludeInvestments: !!params.includeInvestments,
+    IncludeHistory: !!params.includeHistory,
+    CustomMessage: params.customMessage || '',
+    UpdatedAt: toIsoString(nowDate())
+  };
+
+  if (draftId) {
+    var found = findRowById(SHEETS.EMAIL_DRAFTS, 'DraftId', draftId);
+    if (found) {
+      updateRowByIndex(SHEETS.EMAIL_DRAFTS, found.rowIndex, row);
+      row.DraftId = draftId;
+      row.CreatedAt = found.object.CreatedAt;
+      return row;
+    }
+  }
+
+  row.DraftId = newId('draft');
+  row.CreatedAt = row.UpdatedAt;
+  return appendRow(SHEETS.EMAIL_DRAFTS, row);
+}
+
+/** Admin-only: every saved draft, newest first. */
+function listEmailDrafts(token) {
+  var admin = validateSession(token);
+  requireAdmin_(admin);
+
+  var drafts = getAllRows(SHEETS.EMAIL_DRAFTS);
+  drafts.sort(function (a, b) { return toDateObject_(b.UpdatedAt) - toDateObject_(a.UpdatedAt); });
+  return drafts;
+}
+
+function deleteEmailDraft(token, draftId) {
+  var admin = validateSession(token);
+  requireAdmin_(admin);
+
+  var found = findRowById(SHEETS.EMAIL_DRAFTS, 'DraftId', draftId);
+  if (found) getSheet_(SHEETS.EMAIL_DRAFTS).deleteRow(found.rowIndex);
+  return { ok: true };
 }
