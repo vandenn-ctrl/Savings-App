@@ -11,7 +11,7 @@
       <div class="user-badge" style="flex: 2;">
         <div id="top-bar-avatar" class="avatar-badge" onclick="handleChangeMyAvatar(this)" title="Click to change your avatar">🙂</div>
         <div>
-          <div class="user-name" id="top-bar-name"></div>
+          <div class="user-name" id="top-bar-name" onclick="goToHome()" style="cursor:pointer;" title="Go to home"></div>
           <span class="top-bar-role-pill" id="top-bar-role"></span>
         </div>
       </div>
@@ -180,15 +180,24 @@
     var _fabActiveTab = 'overview';
     var _fabMenuLevel = 'main'; // 'main' (the tabs) or 'more' (account/utility actions)
 
-    /** The 3 most-used actions for the current role -- these stay directly on the spiral. */
+    /** Clicking your own name in the top bar goes home -- takes Home's spot off the spiral. */
+    function goToHome() {
+      var role = getRole();
+      _fabActiveTab = 'overview';
+      if (role === 'ADMIN') {
+        adminShowTab('overview');
+      } else {
+        kidShowTab('overview');
+      }
+    }
+
+    /** The most-used actions for the current role -- these stay directly on the spiral. */
     function fabTabItems_() {
       var role = getRole();
       return role === 'ADMIN' ? [
-        { key: 'overview', icon: '🏠', label: 'Home', action: function () { adminShowTab('overview'); } },
         { key: 'approvals', icon: '✅', label: 'Approve', action: function () { adminShowTab('approvals'); } },
         { key: 'communicate', icon: '💬', label: 'Communicate', action: function () { adminShowTab('communicate'); } }
       ] : [
-        { key: 'overview', icon: '🏠', label: 'Home', action: function () { kidShowTab('overview'); } },
         { key: 'invest', icon: '📈', label: 'Investments', action: function () { kidShowTab('invest'); } },
         { key: 'history', icon: '🕒', label: 'History', action: function () { kidShowTab('history'); } }
       ];
@@ -219,7 +228,7 @@
       return fabTabItems_().concat([{ key: '__more', icon: '⋯', label: 'More', action: function () { _fabMenuLevel = 'more'; renderFabMenu(); } }]);
     }
 
-    var _fabTabKeys = ['overview', 'approvals', 'kids', 'rates', 'users', 'manage', 'communicate', 'invest', 'history', 'settings'];
+    var _fabTabKeys = ['approvals', 'kids', 'rates', 'users', 'manage', 'communicate', 'invest', 'history', 'settings'];
 
     /**
      * Positions each item along a spiral (growing angle + radius) fanning
