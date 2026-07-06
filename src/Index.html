@@ -187,10 +187,12 @@
 
     // --- Floating spiral menu (replaces the old top tab bar + action buttons) ---
     var _fabActiveTab = 'overview';
+    var _fabMenuLevel = 'main'; // 'main' (the tabs) or 'more' (account/utility actions)
 
-    function fabMenuItems_() {
+    /** The main tabs for the current role -- these stay directly on the spiral. */
+    function fabTabItems_() {
       var role = getRole();
-      var items = role === 'ADMIN' ? [
+      return role === 'ADMIN' ? [
         { key: 'overview', icon: '🏠', label: 'Overview', action: function () { adminShowTab('overview'); } },
         { key: 'approvals', icon: '✅', label: 'Approvals', action: function () { adminShowTab('approvals'); } },
         { key: 'kids', icon: '👨‍👩‍👧‍👦', label: 'Kids', action: function () { adminShowTab('kids'); } },
@@ -203,13 +205,26 @@
         { key: 'history', icon: '🕒', label: 'History', action: function () { kidShowTab('history'); } },
         { key: 'settings', icon: '🔧', label: 'Settings', action: function () { kidShowTab('settings'); } }
       ];
-      if (role === 'ADMIN') {
+    }
+
+    /** Everything that isn't a tab -- tucked behind the "More" item instead of cluttering the main spiral. */
+    function fabMoreItems_() {
+      var items = [];
+      if (getRole() === 'ADMIN') {
         items.push({ key: 'email', icon: '✉️', label: 'Email', action: handleGoToEmail });
       }
       items.push({ key: 'theme', icon: '⚙️', label: 'Theme', action: handleCustomizeTheme });
       items.push({ key: 'switch', icon: '🔀', label: 'Switch User', action: handleSwitchUser });
       items.push({ key: 'logout', icon: '🚪', label: 'Log out', action: handleLogout });
       return items;
+    }
+
+    function fabMenuItems_() {
+      if (_fabMenuLevel === 'more') {
+        return [{ key: '__back', icon: '⬅️', label: 'Back', action: function () { _fabMenuLevel = 'main'; renderFabMenu(); } }]
+          .concat(fabMoreItems_());
+      }
+      return fabTabItems_().concat([{ key: '__more', icon: '⋯', label: 'More', action: function () { _fabMenuLevel = 'more'; renderFabMenu(); } }]);
     }
 
     var _fabTabKeys = ['overview', 'approvals', 'kids', 'rates', 'users', 'manage', 'invest', 'history', 'settings'];
@@ -240,6 +255,10 @@
     function handleFabItemClick(index, btn) {
       var item = fabMenuItems_()[index];
       if (!item) return;
+      if (item.key === '__more' || item.key === '__back') {
+        item.action();
+        return;
+      }
       if (_fabTabKeys.indexOf(item.key) !== -1) _fabActiveTab = item.key;
       closeFabMenu();
       item.action(btn);
@@ -263,6 +282,7 @@
 
     function closeFabMenu() {
       document.body.classList.remove('fab-menu-open');
+      _fabMenuLevel = 'main';
     }
 
     document.addEventListener('DOMContentLoaded', routeToDashboard);
