@@ -170,7 +170,7 @@
     });
   }
 
-  var _savingsChartPoints = [];
+  var _savingsChartDataByWrapId = {};
 
   /**
    * Self-contained SVG line+area chart: solid line + shaded area for the
@@ -179,14 +179,22 @@
    * signals "projected") for the 4-month interest-only forecast. Same blue
    * used for "Savings" in the admin's stacked kids chart, for a consistent
    * color-to-metric mapping across the app.
+   *
+   * Reused by both the kid's own Overview tab and the admin's per-kid
+   * expanded history (possibly several at once), so wrapId/tooltipId are
+   * parameterized and each instance's points are cached by wrapId rather
+   * than a single shared variable -- otherwise hovering one kid's chart
+   * while another is also expanded would show the wrong kid's values.
    */
-  function renderSavingsChart(points) {
-    var wrap = document.getElementById('kid-savings-chart-wrap');
+  function renderSavingsChart(points, wrapId, tooltipId) {
+    wrapId = wrapId || 'kid-savings-chart-wrap';
+    tooltipId = tooltipId || 'savings-chart-tooltip';
+    var wrap = document.getElementById(wrapId);
     if (!points || points.length === 0) {
       wrap.innerHTML = '<p class="muted">No history yet.</p>';
       return;
     }
-    _savingsChartPoints = points;
+    _savingsChartDataByWrapId[wrapId] = points;
 
     var values = points.map(function (p) { return p.value; });
     var minV = Math.min(0, Math.min.apply(null, values));
@@ -238,9 +246,9 @@
     points.forEach(function (p, i) {
       svg += '<text x="' + xFor(i) + '" y="' + (topPad + chartHeight + 18) + '" text-anchor="middle" class="kids-chart-axis-label">' + escapeHtml(p.label) + '</text>';
       svg += '<rect x="' + (xFor(i) - colWidth / 2) + '" y="' + topPad + '" width="' + colWidth + '" height="' + chartHeight +
-        '" fill="transparent" tabindex="0" onmouseenter="showSavingsChartTooltip(event,' + i + ')" ' +
-        'onmousemove="positionSavingsChartTooltip(event)" onmouseleave="hideSavingsChartTooltip()" ' +
-        'onfocus="showSavingsChartTooltip(event,' + i + ')" onblur="hideSavingsChartTooltip()"/>';
+        '" fill="transparent" tabindex="0" onmouseenter="showSavingsChartTooltip(event,' + i + ',\'' + wrapId + '\',\'' + tooltipId + '\')" ' +
+        'onmousemove="positionSavingsChartTooltip(event,\'' + tooltipId + '\')" onmouseleave="hideSavingsChartTooltip(\'' + tooltipId + '\')" ' +
+        'onfocus="showSavingsChartTooltip(event,' + i + ',\'' + wrapId + '\',\'' + tooltipId + '\')" onblur="hideSavingsChartTooltip(\'' + tooltipId + '\')"/>';
     });
 
     svg += '<circle cx="' + xFor(splitIndex) + '" cy="' + yFor(points[splitIndex].value) + '" r="4" class="savings-chart-dot"/>';
@@ -255,19 +263,19 @@
     wrap.innerHTML = svg;
   }
 
-  function showSavingsChartTooltip(evt, index) {
-    var p = _savingsChartPoints[index];
+  function showSavingsChartTooltip(evt, index, wrapId, tooltipId) {
+    var p = (_savingsChartDataByWrapId[wrapId] || [])[index];
     if (!p) return;
-    var tt = document.getElementById('savings-chart-tooltip');
+    var tt = document.getElementById(tooltipId);
     tt.innerHTML =
       '<div class="tt-title">' + escapeHtml(p.label) + (p.projected ? ' (projected)' : '') + '</div>' +
       '<div class="tt-row"><span class="tt-value">' + formatMoney(p.value) + '</span></div>';
     tt.style.display = 'block';
-    positionSavingsChartTooltip(evt);
+    positionSavingsChartTooltip(evt, tooltipId);
   }
 
-  function positionSavingsChartTooltip(evt) {
-    var tt = document.getElementById('savings-chart-tooltip');
+  function positionSavingsChartTooltip(evt, tooltipId) {
+    var tt = document.getElementById(tooltipId);
     if (tt.style.display !== 'block') return;
     var x = (evt.clientX || 0) + 14;
     var y = (evt.clientY || 0) + 14;
@@ -275,8 +283,8 @@
     tt.style.top = y + 'px';
   }
 
-  function hideSavingsChartTooltip() {
-    document.getElementById('savings-chart-tooltip').style.display = 'none';
+  function hideSavingsChartTooltip(tooltipId) {
+    document.getElementById(tooltipId).style.display = 'none';
   }
 
   var _kidHistoryCache = [];

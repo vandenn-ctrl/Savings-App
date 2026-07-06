@@ -202,34 +202,44 @@ function adminRecordSavingsTransaction(token, targetUserId, type, amount, note) 
 /**
  * Admin-only: records an investment buy/sell directly on a kid's behalf and
  * applies it immediately, same rationale as adminRecordSavingsTransaction.
- * manualPrice works the same as in requestBuy/requestSell: give the actual
- * real-world price if known, otherwise the live quote is used.
+ * Same convention as the kid-facing requestBuy/requestSell: amountOrQuantity
+ * is a dollar amount to invest for INVEST_BUY (quantity is derived from the
+ * resolved price), or a share/unit quantity directly for INVEST_SELL.
+ * manualPrice works the same way too: give the actual real-world price if
+ * known, otherwise the live quote is used.
  */
-function adminRecordInvestmentTransaction(token, targetUserId, type, ticker, quantity, note, manualPrice) {
+function adminRecordInvestmentTransaction(token, targetUserId, type, ticker, amountOrQuantity, note, manualPrice) {
   var admin = validateSession(token);
   requireAdmin_(admin);
   if (type !== TRANSACTION_TYPE.INVEST_BUY && type !== TRANSACTION_TYPE.INVEST_SELL) {
     throw new Error('Invalid transaction type.');
   }
   ticker = String(ticker || '').trim().toUpperCase();
-  quantity = Number(quantity);
-  if (!ticker || !quantity || quantity <= 0) throw new Error('Enter a ticker and quantity.');
+  amountOrQuantity = Number(amountOrQuantity);
+  if (!ticker || !amountOrQuantity || amountOrQuantity <= 0) {
+    throw new Error(type === TRANSACTION_TYPE.INVEST_BUY ? 'Enter a ticker and a dollar amount.' : 'Enter a ticker and quantity.');
+  }
 
   var lock = LockService.getScriptLock();
   lock.waitLock(CONFIG.LOCK_WAIT_MS);
   try {
     var priceInfo = resolveRequestPrice_(ticker, manualPrice);
     var investment = getAccountForUser_(targetUserId, ACCOUNT_TYPE.INVESTMENT);
+    var quantity;
 
     // Validated inside the lock, immediately before writing the (already-APPROVED)
     // row, so we never persist a row whose balance/holdings effect then fails to apply.
     if (type === TRANSACTION_TYPE.INVEST_BUY) {
+      var dollarAmount = amountOrQuantity;
+      quantity = roundQuantity(dollarAmount / priceInfo.price);
+      if (quantity <= 0) throw new Error('That amount is too small to buy any ' + ticker + ' at that price.');
+
       var savingsForBuy = getAccountForUser_(targetUserId, ACCOUNT_TYPE.SAVINGS);
-      var cost = roundMoney(quantity * priceInfo.price);
-      if (cost > Number(savingsForBuy.CashBalance)) {
-        throw new Error('This purchase (' + formatCurrency(cost) + ') exceeds the kid\'s savings balance.');
+      if (dollarAmount > Number(savingsForBuy.CashBalance)) {
+        throw new Error('This purchase (' + formatCurrency(dollarAmount) + ') exceeds the kid\'s savings balance.');
       }
     } else {
+      quantity = amountOrQuantity;
       var holding = findOneWhere(SHEETS.HOLDINGS, function (h) { return h.UserId === targetUserId && h.Ticker === ticker; });
       if (!holding || Number(holding.Quantity) < quantity) {
         throw new Error('This kid does not hold enough ' + ticker + ' to sell that quantity.');

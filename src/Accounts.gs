@@ -99,22 +99,21 @@ function balanceAsOf_(sortedTxns, cutoff) {
 }
 
 /**
- * Kid-facing: monthly savings-balance history for the past 8 months plus the
- * current (partial) month, reconstructed by replaying every approved
- * cash-affecting transaction from a zero opening balance -- there's no
- * separately-stored balance history, so this is derived fresh each call.
- * Followed by a 4-month forward projection assuming no further deposits,
- * withdrawals, buys or sells -- interest only, compounding daily at the
- * kid's current rate exactly like the real nightly accrual job does, so the
- * projection is what actually happens if nothing else changes.
+ * Monthly savings-balance history for the past 8 months plus the current
+ * (partial) month, reconstructed by replaying every approved cash-affecting
+ * transaction from a zero opening balance -- there's no separately-stored
+ * balance history, so this is derived fresh each call. Followed by a
+ * 4-month forward projection assuming no further deposits, withdrawals,
+ * buys or sells -- interest only, compounding daily at the current rate
+ * exactly like the real nightly accrual job does, so the projection is what
+ * actually happens if nothing else changes.
  */
-function getSavingsHistory(token) {
-  var user = validateSession(token);
-  var rate = getCurrentRate(user.UserId);
+function buildSavingsHistory_(userId) {
+  var rate = getCurrentRate(userId);
   var today = nowDate();
 
   var cashTxns = findWhere(SHEETS.TRANSACTIONS, function (t) {
-    return t.UserId === user.UserId && t.Status === TRANSACTION_STATUS.APPROVED;
+    return t.UserId === userId && t.Status === TRANSACTION_STATUS.APPROVED;
   });
   cashTxns.forEach(function (t) { t._effectiveDate = toDateObject_(t.ReviewedAt || t.RequestedAt); });
   cashTxns.sort(function (a, b) { return a._effectiveDate - b._effectiveDate; });
@@ -135,6 +134,21 @@ function getSavingsHistory(token) {
   }
 
   return { points: points, currentBalance: baselineBalance, rate: rate };
+}
+
+/** Kid (or admin viewing their own account): savings history + projection. */
+function getSavingsHistory(token) {
+  var user = validateSession(token);
+  return buildSavingsHistory_(user.UserId);
+}
+
+/** Admin-only: any kid's savings history + projection. */
+function getUserSavingsHistory(token, targetUserId) {
+  var admin = validateSession(token);
+  requireAdmin_(admin);
+  var target = findRowById(SHEETS.USERS, 'UserId', targetUserId);
+  if (!target) throw new Error('User not found.');
+  return buildSavingsHistory_(targetUserId);
 }
 
 /** Kid: update their own statement delivery preference. */
