@@ -207,9 +207,10 @@
     var width = leftPad + rightPad + colWidth * (points.length - 1);
     var height = topPad + chartHeight + bottomPad;
 
-    var step = niceChartStep_((maxV - minV) / 4 || 1);
+    var step = niceChartStep_((maxV - minV) / 4 || 10);
     var niceMax = Math.ceil(maxV / step) * step;
     var niceMin = Math.floor(minV / step) * step;
+    if (niceMax === niceMin) niceMax = niceMin + step * 4;
     var range = (niceMax - niceMin) || 1;
     var scale = chartHeight / range;
 
