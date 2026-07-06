@@ -1,29 +1,23 @@
 <div id="view-admin" class="app-shell hidden">
   <div id="admin-tab-overview">
     <div class="card">
-      <h2>Family overview</h2>
-      <div class="stat-row">
-        <div class="stat-tile">
-          <div class="label">Total savings</div>
-          <div class="value" id="overview-total-savings">$0.00</div>
-        </div>
-        <div class="stat-tile">
-          <div class="label">Total investments</div>
-          <div class="value" id="overview-total-investments">$0.00</div>
-        </div>
-        <div class="stat-tile">
-          <div class="label">Family net worth</div>
-          <div class="value" id="overview-total-networth">$0.00</div>
-        </div>
-      </div>
-    </div>
-    <div class="card">
       <h3>Savings &amp; investments by kid</h3>
       <div class="kids-chart-legend">
         <span><span class="swatch swatch-savings"></span>Savings</span>
         <span><span class="swatch swatch-investments"></span>Investments</span>
       </div>
       <div id="overview-chart-wrap" class="kids-chart-wrap"></div>
+    </div>
+    <div class="card">
+      <h3>Actions</h3>
+      <div class="row" style="flex-wrap: wrap;">
+        <button onclick="adminShowTab('approvals')">✅ Approvals</button>
+        <button onclick="adminShowTab('kids')">👨‍👩‍👧‍👦 Kids</button>
+        <button onclick="adminShowTab('rates')">💹 Rates</button>
+        <button onclick="adminShowTab('users')">👤 Users</button>
+        <button onclick="adminShowTab('manage')">🛠️ Manage</button>
+        <button class="secondary" onclick="handleGoToEmail()">✉️ Send an email</button>
+      </div>
     </div>
   </div>
 
@@ -192,22 +186,15 @@
     callAuthed('listUsers', [], function (users) {
       var kids = users.filter(function (u) { return u.role === 'KID'; });
       if (kids.length === 0) {
-        ['overview-total-savings', 'overview-total-investments', 'overview-total-networth'].forEach(function (id) {
-          document.getElementById(id).textContent = formatMoney(0);
-        });
         document.getElementById('overview-chart-wrap').innerHTML = '<p class="muted">No kids yet.</p>';
         return;
       }
 
       var results = new Array(kids.length); // indexed by position, not completion order
-      var totals = { savings: 0, investments: 0, netWorth: 0 };
       var remaining = kids.length;
 
       kids.forEach(function (kid, index) {
         callAuthed('getUserSummary', [kid.userId], function (summary) {
-          totals.savings += summary.savings.cashBalance;
-          totals.investments += summary.holdingsValue;
-          totals.netWorth += summary.netWorth;
           results[index] = {
             displayName: kid.displayName,
             avatar: kid.avatar || '🙂',
@@ -216,9 +203,6 @@
           };
           remaining--;
           if (remaining === 0) {
-            document.getElementById('overview-total-savings').textContent = formatMoney(totals.savings);
-            document.getElementById('overview-total-investments').textContent = formatMoney(totals.investments);
-            document.getElementById('overview-total-networth').textContent = formatMoney(totals.netWorth);
             renderKidsChart(results);
           }
         });
