@@ -388,6 +388,9 @@
     if (t.Type === 'EMAIL_SENT') {
       return ['Kid: ' + (t.displayName || t.UserId), 'Type: Email sent', 'Sent: ' + t.RequestedAt, t.Notes || ''].join('\n');
     }
+    if (t.Type === 'KID_MESSAGE') {
+      return ['Kid: ' + (t.displayName || t.UserId), 'Type: Message from kid', 'Sent: ' + t.RequestedAt, t.Notes || ''].join('\n');
+    }
     var lines = [
       'Kid: ' + (t.displayName || t.UserId),
       'Type: ' + t.Type,
@@ -440,8 +443,8 @@
     callAuthed('listAllTransactions', [], function (all) {
       _adminAllTxnsCache = all;
       var rows = all.map(function (t) {
-        var details = t.Type === 'EMAIL_SENT'
-          ? (t.Notes || 'Email sent')
+        var details = (t.Type === 'EMAIL_SENT' || t.Type === 'KID_MESSAGE')
+          ? (t.Notes || '')
           : (t.Ticker
             ? (t.Ticker + ' x ' + t.Quantity + (t.PriceSource === 'MANUAL' ? ' (manual price)' : ''))
             : formatMoney(t.Amount));
@@ -466,12 +469,12 @@
     var txn = findAnyTxn_(txnId);
     if (!txn) { showError('Transaction not found -- try reloading the tab.'); return; }
     var isInvest = txn.Type === 'INVEST_BUY' || txn.Type === 'INVEST_SELL';
-    var isEmail = txn.Type === 'EMAIL_SENT';
+    var isLogOnly = txn.Type === 'EMAIL_SENT' || txn.Type === 'KID_MESSAGE';
 
     showModal({
       title: 'Edit transaction',
-      bodyText: buildTransactionDetailText_(txn) + (txn.Status === 'APPROVED' && !isEmail ? '\n\nThis was already approved -- its balance/holdings effect will be reversed and reapplied with the new values.' : ''),
-      fields: isEmail
+      bodyText: buildTransactionDetailText_(txn) + (txn.Status === 'APPROVED' && !isLogOnly ? '\n\nThis was already approved -- its balance/holdings effect will be reversed and reapplied with the new values.' : ''),
+      fields: isLogOnly
         ? [{ key: 'notes', label: 'Note', value: txn.Notes || '' }]
         : isInvest
           ? [{ key: 'quantity', label: 'Quantity', type: 'number', value: String(txn.Quantity) }, { key: 'notes', label: 'Note', value: txn.Notes || '' }]
@@ -480,7 +483,7 @@
     }).then(function (result) {
       if (!result.confirmed) return;
       var updates = { notes: result.values.notes };
-      if (isInvest) { updates.quantity = result.values.quantity; } else if (!isEmail) { updates.amount = result.values.amount; }
+      if (isInvest) { updates.quantity = result.values.quantity; } else if (!isLogOnly) { updates.amount = result.values.amount; }
 
       callAuthed('editTransaction', [txnId, updates], function () {
         showError('Transaction updated.');
@@ -554,7 +557,7 @@
         return;
       }
       var rows = mine.map(function (t) {
-        var details = t.Type === 'EMAIL_SENT' ? (t.Notes || 'Email sent') : (t.Ticker ? (t.Ticker + ' x ' + t.Quantity) : formatMoney(t.Amount));
+        var details = (t.Type === 'EMAIL_SENT' || t.Type === 'KID_MESSAGE') ? (t.Notes || '') : (t.Ticker ? (t.Ticker + ' x ' + t.Quantity) : formatMoney(t.Amount));
         return '<tr><td>' + escapeHtml(t.RequestedAt) + '</td><td>' + escapeHtml(t.Type) + '</td><td>' +
           escapeHtml(details) + '</td><td><span class="badge badge-' + t.Status + '">' + t.Status + '</span></td><td>' +
           escapeHtml(t.ReviewNote || '') + '</td></tr>';

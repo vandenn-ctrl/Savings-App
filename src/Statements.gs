@@ -124,7 +124,9 @@ function generateStatementHtml(userId, periodStart, periodEnd) {
   template.holdings = holdings;
   template.holdingsValue = roundMoney(holdingsValue);
   template.netWorth = roundMoney(Number(savings.CashBalance) + holdingsValue);
-  template.transactions = periodTxns.filter(function (t) { return t.Type !== TRANSACTION_TYPE.EMAIL_SENT; });
+  template.transactions = periodTxns.filter(function (t) {
+    return t.Type !== TRANSACTION_TYPE.EMAIL_SENT && t.Type !== TRANSACTION_TYPE.KID_MESSAGE;
+  });
 
   return template.evaluate().getContent();
 }

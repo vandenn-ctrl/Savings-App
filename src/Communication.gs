@@ -4,6 +4,9 @@
  * blocks to include, and a free-text message, then send immediately.
  * Unlike Statements.gs (scheduled, per-user-preference statements), this is
  * a one-off email the admin explicitly composes and triggers.
+ *
+ * Also handles the reverse direction: a kid messaging the parent/admin(s)
+ * directly, outside of any transaction request (see sendMessageToParent).
  */
 
 /** Admin-only: sends a composed email. params: { targetUserId, toEmail, subject, includeSavings, includeInvestments, includeHistory, customMessage }. */
@@ -84,7 +87,8 @@ function buildCustomEmailHtml_(params) {
 
   if (user && params.includeHistory) {
     var txns = findWhere(SHEETS.TRANSACTIONS, function (t) {
-      return t.UserId === user.UserId && t.Status === TRANSACTION_STATUS.APPROVED && t.Type !== TRANSACTION_TYPE.EMAIL_SENT;
+      return t.UserId === user.UserId && t.Status === TRANSACTION_STATUS.APPROVED &&
+        t.Type !== TRANSACTION_TYPE.EMAIL_SENT && t.Type !== TRANSACTION_TYPE.KID_MESSAGE;
     });
     txns.sort(function (a, b) { return toDateObject_(b.RequestedAt) - toDateObject_(a.RequestedAt); });
     txns = txns.slice(0, 10);
@@ -114,4 +118,39 @@ function buildCustomEmailHtml_(params) {
     '<h2 style="color: #2f6f4f;">Family Savings</h2>' +
     sections.join('') +
     '</div>';
+}
+
+/**
+ * Kid-initiated message to the parent/admin(s), outside of any transaction
+ * request. Stored as an auto-approved, zero-amount KID_MESSAGE transaction
+ * (same pattern as EMAIL_SENT) so it's kept on record in the kid's own
+ * history and the admin's per-kid history, and also emailed immediately to
+ * every active admin's email address so it's noticed right away.
+ */
+function sendMessageToParent(token, message) {
+  var user = validateSession(token);
+  message = String(message || '').trim();
+  if (!message) throw new Error('Enter a message.');
+
+  appendRow(SHEETS.TRANSACTIONS, {
+    TransactionId: newId('txn'),
+    UserId: user.UserId,
+    Type: TRANSACTION_TYPE.KID_MESSAGE,
+    Status: TRANSACTION_STATUS.APPROVED,
+    Amount: 0,
+    RequestedAt: toIsoString(nowDate()),
+    Notes: message
+  });
+
+  var admins = findWhere(SHEETS.USERS, function (u) { return u.Role === ROLE.ADMIN && u.Status === USER_STATUS.ACTIVE; });
+  var adminEmails = admins.map(function (a) { return String(a.Email || '').trim(); }).filter(function (e) { return e; });
+  if (adminEmails.length > 0) {
+    MailApp.sendEmail({
+      to: adminEmails.join(','),
+      subject: 'Message from ' + user.DisplayName,
+      body: message
+    });
+  }
+
+  return { ok: true };
 }

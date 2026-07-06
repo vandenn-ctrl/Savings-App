@@ -39,6 +39,13 @@
       <button class="secondary" onclick="submitSavingsRequest(this, 'SAVINGS_WITHDRAWAL')">Request withdrawal</button>
       <p class="muted">Deposits and withdrawals need your parent's approval before they affect your balance.</p>
     </div>
+
+    <div class="card">
+      <h3>Message your parent</h3>
+      <label for="kid-message-text">Message</label>
+      <textarea id="kid-message-text" rows="3" placeholder="Ask a question or let them know something..."></textarea>
+      <button onclick="submitMessageToParent(this)">Send message</button>
+    </div>
   </div>
 
   <div id="kid-tab-invest" class="hidden">
@@ -155,7 +162,9 @@
     callAuthed('listMyTransactions', [], function (transactions) {
       _kidHistoryCache = transactions;
       var rows = transactions.map(function (t) {
-        var details = t.Type === 'EMAIL_SENT' ? 'Email sent' : (t.Ticker ? (t.Ticker + ' x ' + t.Quantity) : formatMoney(t.Amount));
+        var details = t.Type === 'EMAIL_SENT' ? 'Email sent'
+          : t.Type === 'KID_MESSAGE' ? t.Notes
+          : (t.Ticker ? (t.Ticker + ' x ' + t.Quantity) : formatMoney(t.Amount));
         return '<tr><td>' + escapeHtml(t.RequestedAt) + '</td><td>' + escapeHtml(t.Type) + '</td><td>' +
           escapeHtml(details) + '</td><td><span class="badge badge-' + t.Status + '">' + t.Status + '</span></td><td>' +
           '<button class="secondary" onclick="viewKidTxnDetail(\'' + t.TransactionId + '\')">Details</button></td></tr>';
@@ -168,6 +177,9 @@
   function buildKidTxnDetailText_(t) {
     if (t.Type === 'EMAIL_SENT') {
       return ['Type: Email sent', 'Date: ' + t.RequestedAt, t.Notes || ''].join('\n');
+    }
+    if (t.Type === 'KID_MESSAGE') {
+      return ['Type: Message to your parent', 'Sent: ' + t.RequestedAt, t.Notes || ''].join('\n');
     }
     var lines = ['Type: ' + t.Type, 'Requested: ' + t.RequestedAt, 'Status: ' + t.Status];
     if (t.Ticker) {
@@ -234,6 +246,15 @@
       document.getElementById('kid-sell-qty').value = '';
       document.getElementById('kid-sell-price').value = '';
       loadKidDashboard();
+    }, null, button);
+  }
+
+  function submitMessageToParent(button) {
+    var message = document.getElementById('kid-message-text').value.trim();
+    if (!message) { showError('Enter a message first.'); return; }
+    callAuthed('sendMessageToParent', [message], function () {
+      document.getElementById('kid-message-text').value = '';
+      showError('Message sent.');
     }, null, button);
   }
 
