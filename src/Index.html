@@ -15,12 +15,13 @@
           <span class="top-bar-role-pill" id="top-bar-role"></span>
         </div>
       </div>
-      <div style="flex: 0 0 auto;">
-        <button class="secondary" onclick="handleCustomizeTheme(this)">🎨 Theme</button>
-        <button class="secondary" onclick="handleSwitchUser(this)">Switch User</button>
-        <button class="secondary" onclick="handleLogout(this)">Log out</button>
-      </div>
     </div>
+  </div>
+
+  <div id="fab-backdrop" onclick="closeFabMenu()"></div>
+  <div id="fab-root" class="hidden">
+    <div id="fab-items"></div>
+    <button id="fab-toggle" onclick="toggleFabMenu()" title="Menu">☰</button>
   </div>
 
   <div id="modal-overlay" class="modal-overlay hidden">
@@ -52,14 +53,18 @@
       var token = getToken();
       var role = getRole();
       var topBar = document.getElementById('top-bar');
+      var fabRoot = document.getElementById('fab-root');
 
       if (!token) {
         topBar.classList.add('hidden');
+        fabRoot.classList.add('hidden');
+        closeFabMenu();
         showLoginView();
         return;
       }
 
       topBar.classList.remove('hidden');
+      fabRoot.classList.remove('hidden');
       applyTheme(getTheme());
       document.getElementById('top-bar-avatar').textContent = getAvatar();
       document.getElementById('top-bar-name').textContent = getDisplayName() || '';
@@ -68,6 +73,7 @@
       roleEl.className = 'top-bar-role-pill role-' + role;
 
       hideAllViews();
+      _fabActiveTab = 'overview';
       if (role === 'ADMIN') {
         document.getElementById('view-admin').classList.remove('hidden');
         if (typeof loadAdminDashboard === 'function') loadAdminDashboard();
@@ -168,6 +174,76 @@
         clearSession();
         routeToDashboard();
       }, button);
+    }
+
+    // --- Floating spiral menu (replaces the old top tab bar + action buttons) ---
+    var _fabActiveTab = 'overview';
+
+    function fabMenuItems_() {
+      var role = getRole();
+      var items = role === 'ADMIN' ? [
+        { key: 'overview', icon: '🏠', label: 'Overview', action: function () { adminShowTab('overview'); } },
+        { key: 'approvals', icon: '✅', label: 'Approvals', action: function () { adminShowTab('approvals'); } },
+        { key: 'kids', icon: '👨‍👩‍👧‍👦', label: 'Kids', action: function () { adminShowTab('kids'); } },
+        { key: 'rates', icon: '💹', label: 'Rates', action: function () { adminShowTab('rates'); } },
+        { key: 'users', icon: '👤', label: 'Users', action: function () { adminShowTab('users'); } },
+        { key: 'manage', icon: '🛠️', label: 'Manage', action: function () { adminShowTab('manage'); } }
+      ] : [
+        { key: 'overview', icon: '🏠', label: 'Overview', action: function () { kidShowTab('overview'); } },
+        { key: 'invest', icon: '📈', label: 'Investments', action: function () { kidShowTab('invest'); } },
+        { key: 'history', icon: '🕒', label: 'History', action: function () { kidShowTab('history'); } },
+        { key: 'settings', icon: '⚙️', label: 'Settings', action: function () { kidShowTab('settings'); } }
+      ];
+      items.push({ key: 'theme', icon: '🎨', label: 'Theme', action: handleCustomizeTheme });
+      items.push({ key: 'switch', icon: '🔀', label: 'Switch User', action: handleSwitchUser });
+      items.push({ key: 'logout', icon: '🚪', label: 'Log out', action: handleLogout });
+      return items;
+    }
+
+    var _fabTabKeys = ['overview', 'approvals', 'kids', 'rates', 'users', 'manage', 'invest', 'history', 'settings'];
+
+    /**
+     * Positions each item along a spiral (growing angle + radius) fanning
+     * up-and-left from the FAB. Sweep is capped at 75° -- the FAB sits near
+     * the bottom-right corner, so the arc must stay within "straight up" to
+     * "upper-left"; going further toward "left" or beyond starts adding a
+     * downward component that would push later (larger-radius) items off
+     * the bottom of the screen.
+     */
+    function renderFabMenu() {
+      var items = fabMenuItems_();
+      var baseRadius = 72, radiusStep = 28, sweepDeg = 75;
+      document.getElementById('fab-items').innerHTML = items.map(function (item, i) {
+        var t = items.length > 1 ? i / (items.length - 1) : 0;
+        var theta = (-t * sweepDeg) * Math.PI / 180;
+        var radius = baseRadius + i * radiusStep;
+        var dx = (Math.sin(theta) * radius).toFixed(1);
+        var dy = (-Math.cos(theta) * radius).toFixed(1);
+        var activeClass = (item.key === _fabActiveTab) ? ' active' : '';
+        return '<button class="fab-item' + activeClass + '" style="--dx:' + dx + 'px; --dy:' + dy + 'px;" ' +
+          'title="' + escapeHtml(item.label) + '" onclick="handleFabItemClick(' + i + ', this)">' + item.icon + '</button>';
+      }).join('');
+    }
+
+    function handleFabItemClick(index, btn) {
+      var item = fabMenuItems_()[index];
+      if (!item) return;
+      if (_fabTabKeys.indexOf(item.key) !== -1) _fabActiveTab = item.key;
+      closeFabMenu();
+      item.action(btn);
+    }
+
+    function toggleFabMenu() {
+      if (document.body.classList.contains('fab-menu-open')) {
+        closeFabMenu();
+      } else {
+        renderFabMenu();
+        document.body.classList.add('fab-menu-open');
+      }
+    }
+
+    function closeFabMenu() {
+      document.body.classList.remove('fab-menu-open');
     }
 
     document.addEventListener('DOMContentLoaded', routeToDashboard);

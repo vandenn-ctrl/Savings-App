@@ -1,13 +1,4 @@
 <div id="view-admin" class="app-shell hidden">
-  <div class="tabs">
-    <button id="admin-tab-btn-overview" class="active" onclick="adminShowTab('overview')"><span class="tab-icon">🏠</span><span class="tab-label">Overview</span></button>
-    <button id="admin-tab-btn-approvals" onclick="adminShowTab('approvals')"><span class="tab-icon">✅</span><span class="tab-label">Approvals</span></button>
-    <button id="admin-tab-btn-kids" onclick="adminShowTab('kids')"><span class="tab-icon">👨‍👩‍👧‍👦</span><span class="tab-label">Kids</span></button>
-    <button id="admin-tab-btn-rates" onclick="adminShowTab('rates')"><span class="tab-icon">💹</span><span class="tab-label">Rates</span></button>
-    <button id="admin-tab-btn-users" onclick="adminShowTab('users')"><span class="tab-icon">👤</span><span class="tab-label">Users</span></button>
-    <button id="admin-tab-btn-manage" onclick="adminShowTab('manage')"><span class="tab-icon">🛠️</span><span class="tab-label">Manage</span></button>
-  </div>
-
   <div id="admin-tab-overview">
     <div class="card">
       <h2>Family overview</h2>
@@ -33,13 +24,6 @@
         <span><span class="swatch swatch-investments"></span>Investments</span>
       </div>
       <div id="overview-chart-wrap" class="kids-chart-wrap"></div>
-    </div>
-    <div class="card">
-      <h3>By kid</h3>
-      <table>
-        <thead><tr><th>Kid</th><th>Savings</th><th>Investments</th><th>Net worth</th></tr></thead>
-        <tbody id="overview-kids-rows"></tbody>
-      </table>
     </div>
   </div>
 
@@ -138,12 +122,10 @@
 
   <div id="admin-tab-manage" class="hidden">
     <div class="card">
-      <h2>All transactions</h2>
-      <p class="muted">Edit corrects the amount/quantity and note; if the transaction was already approved, its balance/holdings effect is automatically reversed and reapplied. Delete removes it entirely (and reverses its effect, if approved).</p>
-      <table>
-        <thead><tr><th>Date</th><th>Kid</th><th>Type</th><th>Details</th><th>Status</th><th>Actions</th></tr></thead>
-        <tbody id="admin-transactions-rows"></tbody>
-      </table>
+      <h3>Reset access code</h3>
+      <label for="manage-reset-user">Family member</label>
+      <select id="manage-reset-user"></select>
+      <button class="secondary" onclick="submitResetPasscode(this)">Reset their access code</button>
     </div>
 
     <div class="card">
@@ -172,6 +154,17 @@
 
       <button onclick="submitSendEmail(this)">Send email</button>
     </div>
+
+    <div class="card">
+      <button class="secondary" onclick="toggleAllTransactions(this)">Show all transactions ▾</button>
+      <div id="admin-transactions-panel" class="hidden" style="margin-top:14px;">
+        <p class="muted">Edit corrects the amount/quantity and note; if the transaction was already approved, its balance/holdings effect is automatically reversed and reapplied. Delete removes it entirely (and reverses its effect, if approved).</p>
+        <table>
+          <thead><tr><th>Date</th><th>Kid</th><th>Type</th><th>Details</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="admin-transactions-rows"></tbody>
+        </table>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -182,14 +175,13 @@
   function adminShowTab(name) {
     ['overview', 'approvals', 'kids', 'rates', 'users', 'manage'].forEach(function (t) {
       document.getElementById('admin-tab-' + t).classList.toggle('hidden', t !== name);
-      document.getElementById('admin-tab-btn-' + t).classList.toggle('active', t === name);
     });
     if (name === 'overview') loadOverviewTab();
     if (name === 'approvals') loadPendingApprovals();
     if (name === 'kids') loadKidsOverview();
     if (name === 'rates') loadRatesTab();
     if (name === 'users') loadUsersTab();
-    if (name === 'manage') { loadTransactionsTab(); loadCommunicationTab(); }
+    if (name === 'manage') loadCommunicationTab();
   }
 
   function loadAdminDashboard() {
@@ -200,7 +192,6 @@
     callAuthed('listUsers', [], function (users) {
       var kids = users.filter(function (u) { return u.role === 'KID'; });
       if (kids.length === 0) {
-        document.getElementById('overview-kids-rows').innerHTML = '<tr><td colspan="4" class="muted">No kids yet.</td></tr>';
         ['overview-total-savings', 'overview-total-investments', 'overview-total-networth'].forEach(function (id) {
           document.getElementById(id).textContent = formatMoney(0);
         });
@@ -225,11 +216,6 @@
           };
           remaining--;
           if (remaining === 0) {
-            document.getElementById('overview-kids-rows').innerHTML = results.map(function (r) {
-              return '<tr><td>' + escapeHtml(r.avatar) + ' ' + escapeHtml(r.displayName) + '</td><td>' +
-                formatMoney(r.savings) + '</td><td>' + formatMoney(r.investments) +
-                '</td><td>' + formatMoney(r.savings + r.investments) + '</td></tr>';
-            }).join('');
             document.getElementById('overview-total-savings').textContent = formatMoney(totals.savings);
             document.getElementById('overview-total-investments').textContent = formatMoney(totals.investments);
             document.getElementById('overview-total-networth').textContent = formatMoney(totals.netWorth);
@@ -543,9 +529,8 @@
           rowsHtml[index] =
             '<tr><td>' + escapeHtml(kid.avatar || '🙂') + ' ' + escapeHtml(kid.displayName) + '</td><td>' + formatMoney(summary.savings.cashBalance) +
             '</td><td>' + formatMoney(summary.holdingsValue) + '</td><td>' + formatMoney(summary.netWorth) + '</td>' +
-            '<td><button onclick="adminEnterTransaction(this, \'' + kid.userId + '\', \'' + escapeHtml(kid.displayName) + '\')">Enter transaction</button> ' +
-            '<button class="secondary" onclick="toggleKidHistory(this, \'' + kid.userId + '\')">View history</button> ' +
-            '<button class="secondary" onclick="promptResetPasscode(this, \'' + kid.userId + '\')">Reset code</button></td></tr>' +
+            '<td><button title="Enter a deposit/buy or withdrawal/sell" onclick="adminEnterTransaction(this, \'' + kid.userId + '\', \'' + escapeHtml(kid.displayName) + '\')">+/&minus;</button> ' +
+            '<button class="secondary" onclick="toggleKidHistory(this, \'' + kid.userId + '\')">View history</button></td></tr>' +
             '<tr id="kid-history-row-' + kid.userId + '" class="hidden"><td colspan="5" id="kid-history-cell-' + kid.userId + '"></td></tr>';
           remaining--;
           if (remaining === 0) {
@@ -733,7 +718,32 @@
           return '<option value="' + u.userId + '" data-email="' + escapeHtml(u.email || '') + '">' +
             escapeHtml(u.avatar || '🙂') + ' ' + escapeHtml(u.displayName) + '</option>';
         }).join('');
+
+      var resetSelect = document.getElementById('manage-reset-user');
+      resetSelect.innerHTML = users.map(function (u) {
+        return '<option value="' + u.userId + '">' + escapeHtml(u.avatar || '🙂') + ' ' + escapeHtml(u.displayName) + '</option>';
+      }).join('');
     });
+  }
+
+  function submitResetPasscode(button) {
+    var userId = document.getElementById('manage-reset-user').value;
+    if (!userId) { showError('No family members to reset yet.'); return; }
+    promptResetPasscode(button, userId);
+  }
+
+  /** Lazily loads the transaction ledger the first time it's expanded; collapsed by default to keep the tab short. */
+  function toggleAllTransactions(button) {
+    var panel = document.getElementById('admin-transactions-panel');
+    var isOpen = !panel.classList.contains('hidden');
+    if (isOpen) {
+      panel.classList.add('hidden');
+      button.textContent = 'Show all transactions ▾';
+    } else {
+      panel.classList.remove('hidden');
+      button.textContent = 'Hide all transactions ▴';
+      loadTransactionsTab();
+    }
   }
 
   function commOnTargetUserChange() {

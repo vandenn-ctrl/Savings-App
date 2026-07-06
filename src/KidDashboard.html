@@ -1,11 +1,4 @@
 <div id="view-kid" class="app-shell hidden">
-  <div class="tabs">
-    <button id="kid-tab-btn-overview" class="active" onclick="kidShowTab('overview')"><span class="tab-icon">🏠</span><span class="tab-label">Overview</span></button>
-    <button id="kid-tab-btn-invest" onclick="kidShowTab('invest')"><span class="tab-icon">📈</span><span class="tab-label">Investments</span></button>
-    <button id="kid-tab-btn-history" onclick="kidShowTab('history')"><span class="tab-icon">🕒</span><span class="tab-label">History</span></button>
-    <button id="kid-tab-btn-settings" onclick="kidShowTab('settings')"><span class="tab-icon">⚙️</span><span class="tab-label">Settings</span></button>
-  </div>
-
   <div id="kid-tab-overview">
     <div class="card">
       <h2>Overview</h2>
@@ -132,7 +125,6 @@
   function kidShowTab(name) {
     ['overview', 'invest', 'history', 'settings'].forEach(function (t) {
       document.getElementById('kid-tab-' + t).classList.toggle('hidden', t !== name);
-      document.getElementById('kid-tab-btn-' + (t === 'invest' ? 'invest' : t)).classList.toggle('active', t === name);
     });
     if (name === 'history') loadKidHistory();
   }
