@@ -151,7 +151,10 @@ function getAllKidsSavingsHistory(token) {
   var kids = findWhere(SHEETS.USERS, function (u) { return u.Role === ROLE.KID; });
   return kids.map(function (u) {
     var history = buildSavingsHistory_(u.UserId);
-    return { userId: u.UserId, displayName: u.DisplayName, avatar: u.Avatar || DEFAULT_AVATAR, points: history.points };
+    return {
+      userId: u.UserId, displayName: u.DisplayName, avatar: u.Avatar || DEFAULT_AVATAR,
+      points: history.points, interestEarned: history.interestEarned
+    };
   });
 }
 

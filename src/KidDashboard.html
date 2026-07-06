@@ -19,7 +19,7 @@
           <div class="label">Accrued interest (today)</div>
           <div class="value" id="kid-accrued-interest">$0.00</div>
         </div>
-        <div class="stat-tile">
+        <div class="stat-tile" onclick="kidShowTab('invest')" style="cursor:pointer;" title="Go to Investments">
           <div class="label">Investments value</div>
           <div class="value" id="kid-holdings-value">$0.00</div>
         </div>
@@ -35,6 +35,12 @@
       <h3>Savings</h3>
       <button title="Request a deposit or withdrawal" onclick="openSavingsRequestModal(this)">+/&minus;</button>
       <p class="muted">Deposits and withdrawals need your parent's approval before they affect your balance.</p>
+    </div>
+
+    <div class="card">
+      <h3>Investments</h3>
+      <button title="Buy or sell an investment" onclick="openInvestRequestModal(this)">+/&minus;</button>
+      <p class="muted">Buys draw from your savings balance once approved; sells credit proceeds back to savings. <a href="#" onclick="kidShowTab('invest'); return false;">See holdings &amp; earnings</a></p>
     </div>
 
     <div class="card">
@@ -351,6 +357,44 @@
       callAuthed(fnName, [amount, result.values.note], function () {
         loadKidDashboard();
       }, null, button);
+    });
+  }
+
+  function openInvestRequestModal(button) {
+    showModal({
+      title: 'Buy or sell an investment',
+      fields: [
+        {
+          key: 'type', label: 'Type', type: 'select', options: [
+            { value: 'BUY', label: 'Buy' },
+            { value: 'SELL', label: 'Sell' }
+          ]
+        },
+        { key: 'ticker', label: 'Ticker', placeholder: 'e.g. AAPL, BTC-USD' },
+        { key: 'buyAmount', label: 'Amount to invest ($)', type: 'number', showWhen: { key: 'type', values: ['BUY'] } },
+        { key: 'quantity', label: 'Quantity', type: 'number', showWhen: { key: 'type', values: ['SELL'] } },
+        { key: 'price', label: 'Actual price per share (optional -- leave blank to use the live price)', type: 'number' }
+      ],
+      confirmLabel: 'Request'
+    }).then(function (result) {
+      if (!result.confirmed) return;
+      var v = result.values;
+      var ticker = (v.ticker || '').trim().toUpperCase();
+      if (!ticker) { showError('Enter a ticker.'); return; }
+
+      if (v.type === 'BUY') {
+        var amount = parseFloat(v.buyAmount);
+        if (!amount || amount <= 0) { showError('Enter a dollar amount.'); return; }
+        callAuthed('requestBuy', [ticker, amount, v.price || null], function () {
+          loadKidDashboard();
+        }, null, button);
+      } else {
+        var qty = parseFloat(v.quantity);
+        if (!qty || qty <= 0) { showError('Enter a quantity.'); return; }
+        callAuthed('requestSell', [ticker, qty, v.price || null], function () {
+          loadKidDashboard();
+        }, null, button);
+      }
     });
   }
 

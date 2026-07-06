@@ -107,14 +107,22 @@
     </div>
   </div>
 
-  <div id="admin-tab-manage" class="hidden">
+  <div id="admin-tab-setup" class="hidden">
     <div class="card">
       <h3>Reset access code</h3>
-      <label for="manage-reset-user">Family member</label>
-      <select id="manage-reset-user"></select>
+      <label for="setup-reset-user">Family member</label>
+      <select id="setup-reset-user"></select>
       <button class="secondary" onclick="submitResetPasscode(this)">Reset their access code</button>
     </div>
 
+    <div class="card">
+      <h3>Theme</h3>
+      <p class="muted">Pick your own accent color and background. This only changes how the app looks for you.</p>
+      <button class="secondary" onclick="handleCustomizeTheme(this)">Customize theme</button>
+    </div>
+  </div>
+
+  <div id="admin-tab-manage" class="hidden">
     <div class="card">
       <button id="manage-transactions-toggle-btn" class="secondary" onclick="toggleAllTransactions(this)">Show all transactions ▾</button>
       <div id="admin-transactions-panel" class="hidden" style="margin-top:14px;">
@@ -205,7 +213,7 @@
   var _adminPendingCache = [];
 
   function adminShowTab(name) {
-    ['overview', 'approvals', 'kids', 'rates', 'users', 'manage', 'communicate'].forEach(function (t) {
+    ['overview', 'approvals', 'kids', 'rates', 'users', 'setup', 'manage', 'communicate'].forEach(function (t) {
       document.getElementById('admin-tab-' + t).classList.toggle('hidden', t !== name);
     });
     if (name === 'overview') loadOverviewTab();
@@ -213,7 +221,7 @@
     if (name === 'kids') loadKidsOverview();
     if (name === 'rates') loadRatesTab();
     if (name === 'users') loadUsersTab();
-    if (name === 'manage') loadManageTab();
+    if (name === 'setup') loadSetupTab();
     if (name === 'communicate') loadCommunicateTab();
   }
 
@@ -255,8 +263,9 @@
 
     if (legendEl) {
       legendEl.innerHTML = series.map(function (s) {
+        var extra = (s.interestEarned !== undefined) ? (' · ' + formatMoney(s.interestEarned) + ' interest earned') : '';
         return '<span><span class="line-key" style="border-color:' + s.color + ';"></span>' +
-          escapeHtml(s.avatar) + ' ' + escapeHtml(s.displayName) + '</span>';
+          escapeHtml(s.avatar) + ' ' + escapeHtml(s.displayName) + extra + '</span>';
       }).join('');
     }
 
@@ -558,53 +567,86 @@
   }
 
   /** Admin enters a transaction directly on a kid's behalf -- auto-approved, no separate review needed. */
+  /** Shared submit handler for both the per-kid and the "any user" enter-transaction modals. */
+  function submitAdminTransaction_(button, userId, v, onDone) {
+    if (v.type === 'SAVINGS_DEPOSIT' || v.type === 'SAVINGS_WITHDRAWAL') {
+      if (!v.amount || Number(v.amount) <= 0) { showError('Enter a valid amount.'); return; }
+      callAuthed('adminRecordSavingsTransaction', [userId, v.type, parseFloat(v.amount), v.note], function () {
+        showError('Transaction recorded.');
+        onDone();
+      }, null, button);
+    } else if (v.type === 'INVEST_BUY') {
+      if (!v.ticker || !v.buyAmount || Number(v.buyAmount) <= 0) { showError('Enter a ticker and a dollar amount.'); return; }
+      callAuthed('adminRecordInvestmentTransaction', [userId, v.type, v.ticker, parseFloat(v.buyAmount), v.note, v.price || null], function () {
+        showError('Transaction recorded.');
+        onDone();
+      }, null, button);
+    } else {
+      if (!v.ticker || !v.quantity || Number(v.quantity) <= 0) { showError('Enter a ticker and quantity.'); return; }
+      callAuthed('adminRecordInvestmentTransaction', [userId, v.type, v.ticker, parseFloat(v.quantity), v.note, v.price || null], function () {
+        showError('Transaction recorded.');
+        onDone();
+      }, null, button);
+    }
+  }
+
+  /** The transaction-type/amount/ticker/price/note fields shared by the per-kid and "any user" enter-transaction modals. */
+  function transactionFields_() {
+    return [
+      {
+        key: 'type', label: 'Type', type: 'select', options: [
+          { value: 'SAVINGS_DEPOSIT', label: 'Savings deposit' },
+          { value: 'SAVINGS_WITHDRAWAL', label: 'Savings withdrawal' },
+          { value: 'INVEST_BUY', label: 'Investment buy' },
+          { value: 'INVEST_SELL', label: 'Investment sell' }
+        ]
+      },
+      { key: 'amount', label: 'Amount', type: 'number', showWhen: { key: 'type', values: ['SAVINGS_DEPOSIT', 'SAVINGS_WITHDRAWAL'] } },
+      { key: 'ticker', label: 'Ticker', showWhen: { key: 'type', values: ['INVEST_BUY', 'INVEST_SELL'] } },
+      { key: 'buyAmount', label: 'Amount to invest ($)', type: 'number', showWhen: { key: 'type', values: ['INVEST_BUY'] } },
+      { key: 'quantity', label: 'Quantity', type: 'number', showWhen: { key: 'type', values: ['INVEST_SELL'] } },
+      {
+        key: 'price', label: 'Actual price per share (optional -- uses live price if blank)', type: 'number',
+        showWhen: { key: 'type', values: ['INVEST_BUY', 'INVEST_SELL'] }
+      },
+      { key: 'note', label: 'Optional note' }
+    ];
+  }
+
+  /** Enter a transaction for a specific, already-known kid (the +/- button on their row in the Kids tab). */
   function adminEnterTransaction(button, userId, displayName) {
     showModal({
       title: 'Enter transaction for ' + displayName,
       bodyText: 'This is recorded as already approved -- it takes effect immediately.',
-      fields: [
-        {
-          key: 'type', label: 'Type', type: 'select', options: [
-            { value: 'SAVINGS_DEPOSIT', label: 'Savings deposit' },
-            { value: 'SAVINGS_WITHDRAWAL', label: 'Savings withdrawal' },
-            { value: 'INVEST_BUY', label: 'Investment buy' },
-            { value: 'INVEST_SELL', label: 'Investment sell' }
-          ]
-        },
-        { key: 'amount', label: 'Amount', type: 'number', showWhen: { key: 'type', values: ['SAVINGS_DEPOSIT', 'SAVINGS_WITHDRAWAL'] } },
-        { key: 'ticker', label: 'Ticker', showWhen: { key: 'type', values: ['INVEST_BUY', 'INVEST_SELL'] } },
-        { key: 'buyAmount', label: 'Amount to invest ($)', type: 'number', showWhen: { key: 'type', values: ['INVEST_BUY'] } },
-        { key: 'quantity', label: 'Quantity', type: 'number', showWhen: { key: 'type', values: ['INVEST_SELL'] } },
-        {
-          key: 'price', label: 'Actual price per share (optional -- uses live price if blank)', type: 'number',
-          showWhen: { key: 'type', values: ['INVEST_BUY', 'INVEST_SELL'] }
-        },
-        { key: 'note', label: 'Optional note' }
-      ],
+      fields: transactionFields_(),
       confirmLabel: 'Enter transaction'
     }).then(function (result) {
       if (!result.confirmed) return;
-      var v = result.values;
+      submitAdminTransaction_(button, userId, result.values, loadKidsOverview);
+    });
+  }
 
-      if (v.type === 'SAVINGS_DEPOSIT' || v.type === 'SAVINGS_WITHDRAWAL') {
-        if (!v.amount || Number(v.amount) <= 0) { showError('Enter a valid amount.'); return; }
-        callAuthed('adminRecordSavingsTransaction', [userId, v.type, parseFloat(v.amount), v.note], function () {
-          showError('Transaction recorded.');
-          loadKidsOverview();
-        }, null, button);
-      } else if (v.type === 'INVEST_BUY') {
-        if (!v.ticker || !v.buyAmount || Number(v.buyAmount) <= 0) { showError('Enter a ticker and a dollar amount.'); return; }
-        callAuthed('adminRecordInvestmentTransaction', [userId, v.type, v.ticker, parseFloat(v.buyAmount), v.note, v.price || null], function () {
-          showError('Transaction recorded.');
-          loadKidsOverview();
-        }, null, button);
-      } else {
-        if (!v.ticker || !v.quantity || Number(v.quantity) <= 0) { showError('Enter a ticker and quantity.'); return; }
-        callAuthed('adminRecordInvestmentTransaction', [userId, v.type, v.ticker, parseFloat(v.quantity), v.note, v.price || null], function () {
-          showError('Transaction recorded.');
-          loadKidsOverview();
-        }, null, button);
-      }
+  /** Enter a transaction for any family member -- the main +/- floating button, reachable from any tab. */
+  function openNewTransactionModal(button) {
+    callAuthed('listUsers', [], function (users) {
+      var kids = users.filter(function (u) { return u.role === 'KID'; });
+      if (kids.length === 0) { showError('No kids to record a transaction for yet.'); return; }
+
+      showModal({
+        title: 'New transaction',
+        bodyText: 'This is recorded as already approved -- it takes effect immediately.',
+        fields: [
+          {
+            key: 'targetUser', label: 'Family member', type: 'select',
+            options: kids.map(function (k) { return { value: k.userId, label: (k.avatar || '🙂') + ' ' + k.displayName }; })
+          }
+        ].concat(transactionFields_()),
+        confirmLabel: 'Enter transaction'
+      }).then(function (result) {
+        if (!result.confirmed) return;
+        if (!result.values.targetUser) { showError('Choose a family member.'); return; }
+        submitAdminTransaction_(button, result.values.targetUser, result.values, function () {});
+      });
     });
   }
 
@@ -702,9 +744,9 @@
     }, null, button);
   }
 
-  function loadManageTab() {
+  function loadSetupTab() {
     callAuthed('listUsers', [], function (users) {
-      var resetSelect = document.getElementById('manage-reset-user');
+      var resetSelect = document.getElementById('setup-reset-user');
       resetSelect.innerHTML = users.map(function (u) {
         return '<option value="' + u.userId + '">' + escapeHtml(u.avatar || '🙂') + ' ' + escapeHtml(u.displayName) + '</option>';
       }).join('');
@@ -712,7 +754,7 @@
   }
 
   function submitResetPasscode(button) {
-    var userId = document.getElementById('manage-reset-user').value;
+    var userId = document.getElementById('setup-reset-user').value;
     if (!userId) { showError('No family members to reset yet.'); return; }
     promptResetPasscode(button, userId);
   }

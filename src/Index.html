@@ -23,7 +23,7 @@
   <div id="fab-backdrop" onclick="closeFabMenu()"></div>
   <div id="fab-quick-actions" class="hidden">
     <button class="fab-quick-btn" onclick="goToApprovals()" title="Approvals">✓<span id="fab-approvals-badge" class="fab-badge hidden"></span></button>
-    <button class="fab-quick-btn" onclick="goToTransactions()" title="Transactions">+/&minus;</button>
+    <button class="fab-quick-btn" onclick="goToNewTransaction(this)" title="New transaction">+/&minus;</button>
   </div>
   <div id="fab-root" class="hidden">
     <div id="fab-items"></div>
@@ -208,7 +208,7 @@
         { key: 'users', icon: '👤', label: 'Users', action: function () { adminShowTab('users'); } },
         { key: 'manage', icon: '🛠️', label: 'Manage', action: function () { adminShowTab('manage'); } },
         { key: 'communicate', icon: '💬', label: 'Communicate', action: function () { adminShowTab('communicate'); } },
-        { key: 'theme', icon: '⚙️', label: 'Theme', action: handleCustomizeTheme },
+        { key: 'setup', icon: '⚙️', label: 'Setup', action: function () { adminShowTab('setup'); } },
         { key: 'switch', icon: '🔀', label: 'Switch User', action: handleSwitchUser },
         { key: 'logout', icon: '🚪', label: 'Log out', action: handleLogout }
       ];
@@ -242,21 +242,14 @@
       return fabTabItems_().concat([{ key: '__more', icon: '⋯', label: 'More', action: function () { _fabMenuLevel = 'more'; renderFabMenu(); } }]);
     }
 
-    var _fabTabKeys = ['kids', 'rates', 'users', 'manage', 'communicate', 'invest', 'history', 'settings'];
+    var _fabTabKeys = ['kids', 'rates', 'users', 'setup', 'manage', 'communicate', 'invest', 'history', 'settings'];
 
     function goToApprovals() {
       adminShowTab('approvals');
     }
 
-    function goToTransactions() {
-      adminShowTab('manage');
-      var panel = document.getElementById('admin-transactions-panel');
-      var toggleBtn = document.getElementById('manage-transactions-toggle-btn');
-      if (panel && panel.classList.contains('hidden')) {
-        panel.classList.remove('hidden');
-        if (toggleBtn) toggleBtn.textContent = 'Hide all transactions ▴';
-        if (typeof loadTransactionsTab === 'function') loadTransactionsTab();
-      }
+    function goToNewTransaction(button) {
+      if (typeof openNewTransactionModal === 'function') openNewTransactionModal(button);
     }
 
     /** Puts a pending-approval count on the ✓ quick-button so it signals there's something to review, not just a static icon. */
