@@ -11,7 +11,9 @@
       <div class="user-badge" style="flex: 2;">
         <div id="top-bar-avatar" class="avatar-badge" onclick="handleChangeMyAvatar(this)" title="Click to change your avatar">🙂</div>
         <div>
-          <div class="user-name" id="top-bar-name" onclick="goToHome()" style="cursor:pointer;" title="Go to home"></div>
+          <div class="user-name" id="top-bar-name" onclick="goToHome()" style="cursor:pointer; display:inline-block;" title="Go to home"></div>
+          <span id="top-bar-history-icon" class="hidden" onclick="kidShowTab('history')" title="View history" style="cursor:pointer; margin-left:8px; font-size:16px;">🕒</span>
+          <br>
           <span class="top-bar-role-pill" id="top-bar-role"></span>
         </div>
       </div>
@@ -85,6 +87,7 @@
       var roleEl = document.getElementById('top-bar-role');
       roleEl.textContent = role === 'ADMIN' ? 'Parent / Admin' : 'Kid';
       roleEl.className = 'top-bar-role-pill role-' + role;
+      document.getElementById('top-bar-history-icon').classList.toggle('hidden', role !== 'KID');
 
       hideAllViews();
       _fabActiveTab = 'overview';
