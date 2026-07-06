@@ -32,15 +32,9 @@
     </div>
 
     <div class="card">
-      <h3>Savings</h3>
-      <button title="Request a deposit or withdrawal" onclick="openSavingsRequestModal(this)">+/&minus;</button>
-      <p class="muted">Deposits and withdrawals need your parent's approval before they affect your balance.</p>
-    </div>
-
-    <div class="card">
-      <h3>Investments</h3>
-      <button title="Buy or sell an investment" onclick="openInvestRequestModal(this)">+/&minus;</button>
-      <p class="muted">Buys draw from your savings balance once approved; sells credit proceeds back to savings. <a href="#" onclick="kidShowTab('invest'); return false;">See holdings &amp; earnings</a></p>
+      <h3>Transactions</h3>
+      <button title="Request a savings or investment transaction" onclick="openTransactionRequestModal(this)">+/&minus;</button>
+      <p class="muted">Deposits, withdrawals, buys, and sells all need your parent's approval before they take effect.</p>
     </div>
 
     <div class="card">
@@ -48,6 +42,11 @@
       <label for="kid-message-text">Message</label>
       <textarea id="kid-message-text" rows="3" placeholder="Ask a question or let them know something..."></textarea>
       <button onclick="submitMessageToParent(this)">Send message</button>
+    </div>
+
+    <div class="card">
+      <h3>History</h3>
+      <button class="secondary" title="View your transaction history" onclick="kidShowTab('history')">View history</button>
     </div>
   </div>
 
@@ -334,66 +333,58 @@
     });
   }
 
-  function openSavingsRequestModal(button) {
+  /** The Home tab's single +/- action: a savings deposit/withdrawal or an investment buy/sell, all in one modal. */
+  function openTransactionRequestModal(button) {
     showModal({
-      title: 'Request a savings transaction',
+      title: 'Request a transaction',
       fields: [
         {
           key: 'type', label: 'Type', type: 'select', options: [
-            { value: 'SAVINGS_DEPOSIT', label: 'Deposit (+)' },
-            { value: 'SAVINGS_WITHDRAWAL', label: 'Withdrawal (-)' }
+            { value: 'SAVINGS_DEPOSIT', label: 'Savings deposit (+)' },
+            { value: 'SAVINGS_WITHDRAWAL', label: 'Savings withdrawal (-)' },
+            { value: 'INVEST_BUY', label: 'Investment buy' },
+            { value: 'INVEST_SELL', label: 'Investment sell' }
           ]
         },
-        { key: 'amount', label: 'Amount', type: 'number' },
-        { key: 'note', label: 'Note (optional)' }
-      ],
-      confirmLabel: 'Request'
-    }).then(function (result) {
-      if (!result.confirmed) return;
-      var amount = parseFloat(result.values.amount);
-      if (!amount || amount <= 0) { showError('Enter a valid amount.'); return; }
-
-      var fnName = result.values.type === 'SAVINGS_DEPOSIT' ? 'requestDeposit' : 'requestWithdrawal';
-      callAuthed(fnName, [amount, result.values.note], function () {
-        loadKidDashboard();
-      }, null, button);
-    });
-  }
-
-  function openInvestRequestModal(button) {
-    showModal({
-      title: 'Buy or sell an investment',
-      fields: [
+        { key: 'amount', label: 'Amount', type: 'number', showWhen: { key: 'type', values: ['SAVINGS_DEPOSIT', 'SAVINGS_WITHDRAWAL'] } },
+        { key: 'note', label: 'Note (optional)', showWhen: { key: 'type', values: ['SAVINGS_DEPOSIT', 'SAVINGS_WITHDRAWAL'] } },
+        { key: 'ticker', label: 'Ticker', placeholder: 'e.g. AAPL, BTC-USD', showWhen: { key: 'type', values: ['INVEST_BUY', 'INVEST_SELL'] } },
+        { key: 'buyAmount', label: 'Amount to invest ($)', type: 'number', showWhen: { key: 'type', values: ['INVEST_BUY'] } },
+        { key: 'quantity', label: 'Quantity', type: 'number', showWhen: { key: 'type', values: ['INVEST_SELL'] } },
         {
-          key: 'type', label: 'Type', type: 'select', options: [
-            { value: 'BUY', label: 'Buy' },
-            { value: 'SELL', label: 'Sell' }
-          ]
-        },
-        { key: 'ticker', label: 'Ticker', placeholder: 'e.g. AAPL, BTC-USD' },
-        { key: 'buyAmount', label: 'Amount to invest ($)', type: 'number', showWhen: { key: 'type', values: ['BUY'] } },
-        { key: 'quantity', label: 'Quantity', type: 'number', showWhen: { key: 'type', values: ['SELL'] } },
-        { key: 'price', label: 'Actual price per share (optional -- leave blank to use the live price)', type: 'number' }
+          key: 'price', label: 'Actual price per share (optional -- leave blank to use the live price)', type: 'number',
+          showWhen: { key: 'type', values: ['INVEST_BUY', 'INVEST_SELL'] }
+        }
       ],
       confirmLabel: 'Request'
     }).then(function (result) {
       if (!result.confirmed) return;
       var v = result.values;
-      var ticker = (v.ticker || '').trim().toUpperCase();
-      if (!ticker) { showError('Enter a ticker.'); return; }
 
-      if (v.type === 'BUY') {
-        var amount = parseFloat(v.buyAmount);
-        if (!amount || amount <= 0) { showError('Enter a dollar amount.'); return; }
-        callAuthed('requestBuy', [ticker, amount, v.price || null], function () {
+      if (v.type === 'SAVINGS_DEPOSIT' || v.type === 'SAVINGS_WITHDRAWAL') {
+        var amount = parseFloat(v.amount);
+        if (!amount || amount <= 0) { showError('Enter a valid amount.'); return; }
+        var fnName = v.type === 'SAVINGS_DEPOSIT' ? 'requestDeposit' : 'requestWithdrawal';
+        callAuthed(fnName, [amount, v.note], function () {
           loadKidDashboard();
         }, null, button);
       } else {
-        var qty = parseFloat(v.quantity);
-        if (!qty || qty <= 0) { showError('Enter a quantity.'); return; }
-        callAuthed('requestSell', [ticker, qty, v.price || null], function () {
-          loadKidDashboard();
-        }, null, button);
+        var ticker = (v.ticker || '').trim().toUpperCase();
+        if (!ticker) { showError('Enter a ticker.'); return; }
+
+        if (v.type === 'INVEST_BUY') {
+          var buyAmount = parseFloat(v.buyAmount);
+          if (!buyAmount || buyAmount <= 0) { showError('Enter a dollar amount.'); return; }
+          callAuthed('requestBuy', [ticker, buyAmount, v.price || null], function () {
+            loadKidDashboard();
+          }, null, button);
+        } else {
+          var qty = parseFloat(v.quantity);
+          if (!qty || qty <= 0) { showError('Enter a quantity.'); return; }
+          callAuthed('requestSell', [ticker, qty, v.price || null], function () {
+            loadKidDashboard();
+          }, null, button);
+        }
       }
     });
   }
