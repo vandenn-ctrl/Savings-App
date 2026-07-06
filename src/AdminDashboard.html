@@ -589,15 +589,11 @@
     var cell = document.getElementById('kid-history-cell-' + userId);
     var chartWrapId = 'admin-kid-chart-wrap-' + userId;
     cell.innerHTML =
-      '<div class="savings-chart-legend">' +
-        '<span><span class="line-key"></span>Actual</span>' +
-        '<span><span class="line-key line-key-projected"></span>Projected (interest only)</span>' +
-      '</div>' +
       '<div id="' + chartWrapId + '" class="kids-chart-wrap"><p class="muted">Loading…</p></div>' +
       '<div id="kid-history-table-' + userId + '"><p class="muted">Loading…</p></div>';
 
     callAuthed('getUserSavingsHistory', [userId], function (history) {
-      renderSavingsChart(history.points, chartWrapId, 'admin-kid-chart-tooltip');
+      renderTrendChart(history.points, chartWrapId, 'admin-kid-chart-tooltip', 'savings-chart');
     });
 
     var tableWrap = document.getElementById('kid-history-table-' + userId);

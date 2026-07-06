@@ -288,3 +288,76 @@ function getHoldingsForUser_(userId) {
     };
   });
 }
+
+/**
+ * Replays every approved buy/sell up to (and including) cutoff, returning
+ * per-ticker {quantity, avgCostBasis} (the same weighted-average-cost model
+ * upsertHoldingOnBuy_ uses, done in-memory against a plain list rather than
+ * the Holdings sheet) plus cumulative realized gain/loss from sells up to
+ * that point -- lets a historical "as of" snapshot be reconstructed.
+ */
+function replayInvestmentState_(sortedTxns, cutoff) {
+  var byTicker = {};
+  var realizedGain = 0;
+  for (var i = 0; i < sortedTxns.length; i++) {
+    var t = sortedTxns[i];
+    if (t._effectiveDate > cutoff) break;
+    var state = byTicker[t.Ticker] || { quantity: 0, avgCostBasis: 0 };
+    var price = Number(t.PriceAtApproval);
+    var qty = Number(t.Quantity);
+    if (t.Type === TRANSACTION_TYPE.INVEST_BUY) {
+      var newQty = state.quantity + qty;
+      state.avgCostBasis = newQty > 0 ? ((state.quantity * state.avgCostBasis) + (qty * price)) / newQty : 0;
+      state.quantity = newQty;
+    } else if (t.Type === TRANSACTION_TYPE.INVEST_SELL) {
+      realizedGain += qty * (price - state.avgCostBasis);
+      state.quantity -= qty;
+    }
+    byTicker[t.Ticker] = state;
+  }
+  return { byTicker: byTicker, realizedGain: realizedGain };
+}
+
+/**
+ * Estimated total investment earnings (unrealized gain/loss plus cumulative
+ * realized gain/loss from sells) at weekly points over the past month +
+ * current month. There's no stored historical price series -- Watchlist
+ * only keeps each ticker's latest quote, not a daily history -- so every
+ * point's unrealized portion is priced at TODAY's quote against the
+ * quantity/cost-basis actually held on that date. That's an approximation
+ * (it shows how holdings changed, not how the market moved), not a true
+ * historical mark-to-market, but the best available without adding a
+ * price-history log.
+ */
+function buildInvestmentEarningsHistory_(userId) {
+  var today = nowDate();
+
+  var txns = findWhere(SHEETS.TRANSACTIONS, function (t) {
+    return t.UserId === userId && t.Status === TRANSACTION_STATUS.APPROVED &&
+      (t.Type === TRANSACTION_TYPE.INVEST_BUY || t.Type === TRANSACTION_TYPE.INVEST_SELL);
+  });
+  txns.forEach(function (t) { t._effectiveDate = toDateObject_(t.ReviewedAt || t.RequestedAt); });
+  txns.sort(function (a, b) { return a._effectiveDate - b._effectiveDate; });
+
+  var currentPriceByTicker = {};
+  getAllRows(SHEETS.WATCHLIST).forEach(function (w) { currentPriceByTicker[w.Ticker] = Number(w.LastPrice) || 0; });
+
+  var cutoffs = weeklyCutoffsPastAndCurrentMonth_(today);
+  var points = cutoffs.map(function (cutoff) {
+    var state = replayInvestmentState_(txns, cutoff);
+    var unrealized = 0;
+    Object.keys(state.byTicker).forEach(function (ticker) {
+      var h = state.byTicker[ticker];
+      unrealized += h.quantity * ((currentPriceByTicker[ticker] || 0) - h.avgCostBasis);
+    });
+    return { label: shortDateLabel_(cutoff), value: roundMoney(unrealized + state.realizedGain), projected: false };
+  });
+
+  return { points: points, currentEarnings: points[points.length - 1].value };
+}
+
+/** Kid (or admin viewing their own account): estimated investment earnings history. */
+function getInvestmentEarningsHistory(token) {
+  var user = validateSession(token);
+  return buildInvestmentEarningsHistory_(user.UserId);
+}

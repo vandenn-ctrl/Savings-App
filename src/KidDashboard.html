@@ -3,10 +3,7 @@
     <div class="card">
       <h3>Savings over time</h3>
       <div class="savings-hero-figure" id="kid-savings-hero">$0.00</div>
-      <div class="savings-chart-legend">
-        <span><span class="line-key"></span>Actual</span>
-        <span><span class="line-key line-key-projected"></span>Projected (interest only)</span>
-      </div>
+      <p class="muted">Interest earned (past + current month): <strong id="kid-interest-earned">$0.00</strong></p>
       <div id="kid-savings-chart-wrap" class="kids-chart-wrap"></div>
     </div>
     <div id="savings-chart-tooltip" class="kids-chart-tooltip"></div>
@@ -35,19 +32,8 @@
     </div>
 
     <div class="card">
-      <h3>Request a savings transaction</h3>
-      <div class="row">
-        <div>
-          <label for="kid-txn-amount">Amount</label>
-          <input id="kid-txn-amount" type="number" min="0.01" step="0.01" />
-        </div>
-        <div>
-          <label for="kid-txn-note">Note (optional)</label>
-          <input id="kid-txn-note" type="text" />
-        </div>
-      </div>
-      <button onclick="submitSavingsRequest(this, 'SAVINGS_DEPOSIT')">Request deposit</button>
-      <button class="secondary" onclick="submitSavingsRequest(this, 'SAVINGS_WITHDRAWAL')">Request withdrawal</button>
+      <h3>Savings</h3>
+      <button title="Request a deposit or withdrawal" onclick="openSavingsRequestModal(this)">+/&minus;</button>
       <p class="muted">Deposits and withdrawals need your parent's approval before they affect your balance.</p>
     </div>
 
@@ -60,6 +46,14 @@
   </div>
 
   <div id="kid-tab-invest" class="hidden">
+    <div class="card">
+      <h3>Investment earnings</h3>
+      <div class="savings-hero-figure" id="kid-invest-hero">$0.00</div>
+      <p class="muted">Estimated total gain/loss, unrealized + realized (past + current month)</p>
+      <div id="kid-invest-chart-wrap" class="kids-chart-wrap"></div>
+    </div>
+    <div id="invest-chart-tooltip" class="kids-chart-tooltip"></div>
+
     <div class="card">
       <h3>Holdings</h3>
       <div style="overflow-x: auto;">
@@ -171,39 +165,42 @@
 
     callAuthed('getSavingsHistory', [], function (history) {
       document.getElementById('kid-savings-hero').textContent = formatMoney(history.currentBalance);
-      renderSavingsChart(history.points);
+      document.getElementById('kid-interest-earned').textContent = formatMoney(history.interestEarned);
+      renderTrendChart(history.points, 'kid-savings-chart-wrap', 'savings-chart-tooltip', 'savings-chart');
+    });
+
+    callAuthed('getInvestmentEarningsHistory', [], function (history) {
+      document.getElementById('kid-invest-hero').textContent = formatMoney(history.currentEarnings);
+      renderTrendChart(history.points, 'kid-invest-chart-wrap', 'invest-chart-tooltip', 'invest-chart');
     });
   }
 
-  var _savingsChartDataByWrapId = {};
+  var _trendChartDataByWrapId = {};
 
   /**
-   * Self-contained SVG line+area chart: solid line + shaded area for the
-   * past 8 months plus the current (partial) month, then a dashed
-   * continuation (no area -- shading implies "what happened", dashing
-   * signals "projected") for the 4-month interest-only forecast. Same blue
-   * used for "Savings" in the admin's stacked kids chart, for a consistent
-   * color-to-metric mapping across the app.
+   * Self-contained SVG line+area chart: solid line + shaded area over every
+   * point (weekly, past month + current month). colorPrefix picks the CSS
+   * class family -- 'savings-chart' (blue, matches "Savings" elsewhere) or
+   * 'invest-chart' (green, matches "Investments" elsewhere) -- so the same
+   * renderer drives both the savings-balance and investment-earnings charts.
    *
-   * Reused by both the kid's own Overview tab and the admin's per-kid
-   * expanded history (possibly several at once), so wrapId/tooltipId are
+   * Reused by both the kid's own tabs and the admin's per-kid expanded
+   * history (possibly several at once), so wrapId/tooltipId are
    * parameterized and each instance's points are cached by wrapId rather
    * than a single shared variable -- otherwise hovering one kid's chart
    * while another is also expanded would show the wrong kid's values.
    */
-  function renderSavingsChart(points, wrapId, tooltipId) {
-    wrapId = wrapId || 'kid-savings-chart-wrap';
-    tooltipId = tooltipId || 'savings-chart-tooltip';
+  function renderTrendChart(points, wrapId, tooltipId, colorPrefix) {
     var wrap = document.getElementById(wrapId);
     if (!points || points.length === 0) {
       wrap.innerHTML = '<p class="muted">No history yet.</p>';
       return;
     }
-    _savingsChartDataByWrapId[wrapId] = points;
+    _trendChartDataByWrapId[wrapId] = points;
 
     var values = points.map(function (p) { return p.value; });
     var minV = Math.min(0, Math.min.apply(null, values));
-    var maxV = Math.max.apply(null, values);
+    var maxV = Math.max(0, Math.max.apply(null, values));
 
     var chartHeight = 220, topPad = 32, bottomPad = 24, leftPad = 56, rightPad = 16;
     var colWidth = 46;
@@ -219,11 +216,9 @@
     function xFor(i) { return leftPad + i * colWidth; }
     function yFor(v) { return topPad + chartHeight - (v - niceMin) * scale; }
 
-    var splitIndex = 0;
-    for (var i = 0; i < points.length; i++) { if (!points[i].projected) splitIndex = i; }
     var lastIndex = points.length - 1;
 
-    var svg = '<svg class="kids-chart-svg" viewBox="0 0 ' + width + ' ' + height + '" width="' + width + '" height="' + height + '" role="img" aria-label="Savings balance, past 8 months and 4-month projection">';
+    var svg = '<svg class="kids-chart-svg" viewBox="0 0 ' + width + ' ' + height + '" width="' + width + '" height="' + height + '" role="img" aria-label="Weekly history, past month and current month">';
 
     for (var v = niceMin; v <= niceMax + 0.001; v += step) {
       var y = yFor(v);
@@ -234,52 +229,41 @@
     }
 
     var areaPath = 'M' + xFor(0) + ',' + yFor(0);
-    for (var i = 0; i <= splitIndex; i++) areaPath += ' L' + xFor(i) + ',' + yFor(points[i].value);
-    areaPath += ' L' + xFor(splitIndex) + ',' + yFor(0) + ' Z';
-    svg += '<path d="' + areaPath + '" class="savings-chart-area"/>';
+    for (var i = 0; i <= lastIndex; i++) areaPath += ' L' + xFor(i) + ',' + yFor(points[i].value);
+    areaPath += ' L' + xFor(lastIndex) + ',' + yFor(0) + ' Z';
+    svg += '<path d="' + areaPath + '" class="' + colorPrefix + '-area"/>';
 
-    var actualLine = '';
-    for (var i = 0; i <= splitIndex; i++) actualLine += (i === 0 ? 'M' : ' L') + xFor(i) + ',' + yFor(points[i].value);
-    svg += '<path d="' + actualLine + '" class="savings-chart-line-actual" fill="none"/>';
-
-    if (splitIndex < lastIndex) {
-      var projLine = '';
-      for (var i = splitIndex; i <= lastIndex; i++) projLine += (i === splitIndex ? 'M' : ' L') + xFor(i) + ',' + yFor(points[i].value);
-      svg += '<path d="' + projLine + '" class="savings-chart-line-projected" fill="none"/>';
-    }
+    var line = '';
+    for (var i = 0; i <= lastIndex; i++) line += (i === 0 ? 'M' : ' L') + xFor(i) + ',' + yFor(points[i].value);
+    svg += '<path d="' + line + '" class="' + colorPrefix + '-line" fill="none"/>';
 
     points.forEach(function (p, i) {
       svg += '<text x="' + xFor(i) + '" y="' + (topPad + chartHeight + 18) + '" text-anchor="middle" class="kids-chart-axis-label">' + escapeHtml(p.label) + '</text>';
       svg += '<rect x="' + (xFor(i) - colWidth / 2) + '" y="' + topPad + '" width="' + colWidth + '" height="' + chartHeight +
-        '" fill="transparent" tabindex="0" onmouseenter="showSavingsChartTooltip(event,' + i + ',\'' + wrapId + '\',\'' + tooltipId + '\')" ' +
-        'onmousemove="positionSavingsChartTooltip(event,\'' + tooltipId + '\')" onmouseleave="hideSavingsChartTooltip(\'' + tooltipId + '\')" ' +
-        'onfocus="showSavingsChartTooltip(event,' + i + ',\'' + wrapId + '\',\'' + tooltipId + '\')" onblur="hideSavingsChartTooltip(\'' + tooltipId + '\')"/>';
+        '" fill="transparent" tabindex="0" onmouseenter="showTrendChartTooltip(event,' + i + ',\'' + wrapId + '\',\'' + tooltipId + '\')" ' +
+        'onmousemove="positionTrendChartTooltip(event,\'' + tooltipId + '\')" onmouseleave="hideTrendChartTooltip(\'' + tooltipId + '\')" ' +
+        'onfocus="showTrendChartTooltip(event,' + i + ',\'' + wrapId + '\',\'' + tooltipId + '\')" onblur="hideTrendChartTooltip(\'' + tooltipId + '\')"/>';
     });
 
-    svg += '<circle cx="' + xFor(splitIndex) + '" cy="' + yFor(points[splitIndex].value) + '" r="4" class="savings-chart-dot"/>';
-    svg += '<text x="' + xFor(splitIndex) + '" y="' + (yFor(points[splitIndex].value) - 10) + '" text-anchor="middle" class="kids-chart-total-label">' + formatMoney(points[splitIndex].value) + '</text>';
-
-    if (lastIndex !== splitIndex) {
-      svg += '<circle cx="' + xFor(lastIndex) + '" cy="' + yFor(points[lastIndex].value) + '" r="4" class="savings-chart-dot-projected"/>';
-      svg += '<text x="' + xFor(lastIndex) + '" y="' + (yFor(points[lastIndex].value) - 10) + '" text-anchor="middle" class="kids-chart-total-label">' + formatMoney(points[lastIndex].value) + '</text>';
-    }
+    svg += '<circle cx="' + xFor(lastIndex) + '" cy="' + yFor(points[lastIndex].value) + '" r="4" class="' + colorPrefix + '-dot"/>';
+    svg += '<text x="' + xFor(lastIndex) + '" y="' + (yFor(points[lastIndex].value) - 10) + '" text-anchor="middle" class="kids-chart-total-label">' + formatMoney(points[lastIndex].value) + '</text>';
 
     svg += '</svg>';
     wrap.innerHTML = svg;
   }
 
-  function showSavingsChartTooltip(evt, index, wrapId, tooltipId) {
-    var p = (_savingsChartDataByWrapId[wrapId] || [])[index];
+  function showTrendChartTooltip(evt, index, wrapId, tooltipId) {
+    var p = (_trendChartDataByWrapId[wrapId] || [])[index];
     if (!p) return;
     var tt = document.getElementById(tooltipId);
     tt.innerHTML =
-      '<div class="tt-title">' + escapeHtml(p.label) + (p.projected ? ' (projected)' : '') + '</div>' +
+      '<div class="tt-title">' + escapeHtml(p.label) + '</div>' +
       '<div class="tt-row"><span class="tt-value">' + formatMoney(p.value) + '</span></div>';
     tt.style.display = 'block';
-    positionSavingsChartTooltip(evt, tooltipId);
+    positionTrendChartTooltip(evt, tooltipId);
   }
 
-  function positionSavingsChartTooltip(evt, tooltipId) {
+  function positionTrendChartTooltip(evt, tooltipId) {
     var tt = document.getElementById(tooltipId);
     if (tt.style.display !== 'block') return;
     var x = (evt.clientX || 0) + 14;
@@ -288,7 +272,7 @@
     tt.style.top = y + 'px';
   }
 
-  function hideSavingsChartTooltip(tooltipId) {
+  function hideTrendChartTooltip(tooltipId) {
     document.getElementById(tooltipId).style.display = 'none';
   }
 
@@ -344,17 +328,30 @@
     });
   }
 
-  function submitSavingsRequest(button, type) {
-    var amount = parseFloat(document.getElementById('kid-txn-amount').value);
-    var note = document.getElementById('kid-txn-note').value;
-    if (!amount || amount <= 0) { showError('Enter a valid amount.'); return; }
+  function openSavingsRequestModal(button) {
+    showModal({
+      title: 'Request a savings transaction',
+      fields: [
+        {
+          key: 'type', label: 'Type', type: 'select', options: [
+            { value: 'SAVINGS_DEPOSIT', label: 'Deposit (+)' },
+            { value: 'SAVINGS_WITHDRAWAL', label: 'Withdrawal (-)' }
+          ]
+        },
+        { key: 'amount', label: 'Amount', type: 'number' },
+        { key: 'note', label: 'Note (optional)' }
+      ],
+      confirmLabel: 'Request'
+    }).then(function (result) {
+      if (!result.confirmed) return;
+      var amount = parseFloat(result.values.amount);
+      if (!amount || amount <= 0) { showError('Enter a valid amount.'); return; }
 
-    var fnName = type === 'SAVINGS_DEPOSIT' ? 'requestDeposit' : 'requestWithdrawal';
-    callAuthed(fnName, [amount, note], function () {
-      document.getElementById('kid-txn-amount').value = '';
-      document.getElementById('kid-txn-note').value = '';
-      loadKidDashboard();
-    }, null, button);
+      var fnName = result.values.type === 'SAVINGS_DEPOSIT' ? 'requestDeposit' : 'requestWithdrawal';
+      callAuthed(fnName, [amount, result.values.note], function () {
+        loadKidDashboard();
+      }, null, button);
+    });
   }
 
   function submitBuyRequest(button) {

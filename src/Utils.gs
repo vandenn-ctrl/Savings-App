@@ -54,6 +54,22 @@ function monthLabel_(date) {
   return Utilities.formatDate(date, Session.getScriptTimeZone(), "MMM ''yy");
 }
 
+/** Short month + day, e.g. "Jun 15" -- used as the x-axis label on the past+current-month trend charts. */
+function shortDateLabel_(date) {
+  return Utilities.formatDate(date, Session.getScriptTimeZone(), 'MMM d');
+}
+
+/** Weekly cutoff dates from the start of last month through today (inclusive) -- the "past + current month" window shared by the savings and investment trend charts. */
+function weeklyCutoffsPastAndCurrentMonth_(today) {
+  var windowStart = addMonths_(startOfMonth_(today), -1);
+  var cutoffs = [];
+  for (var d = new Date(windowStart.getTime()); d < today; d = addDays(d, 7)) {
+    cutoffs.push(new Date(d.getTime()));
+  }
+  cutoffs.push(today);
+  return cutoffs;
+}
+
 /**
  * Sheets tends to auto-convert date-looking strings written to a cell into
  * real Date objects on read-back. These two helpers normalize either shape

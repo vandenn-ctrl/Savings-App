@@ -99,17 +99,15 @@ function balanceAsOf_(sortedTxns, cutoff) {
 }
 
 /**
- * Monthly savings-balance history for the past 8 months plus the current
- * (partial) month, reconstructed by replaying every approved cash-affecting
- * transaction from a zero opening balance -- there's no separately-stored
- * balance history, so this is derived fresh each call. Followed by a
- * 4-month forward projection assuming no further deposits, withdrawals,
- * buys or sells -- interest only, compounding daily at the current rate
- * exactly like the real nightly accrual job does, so the projection is what
- * actually happens if nothing else changes.
+ * Weekly savings-balance history for the past month + current month,
+ * reconstructed by replaying every approved cash-affecting transaction from
+ * a zero opening balance -- there's no separately-stored balance history,
+ * so this is derived fresh each call. Also returns interestEarned, the sum
+ * of INTEREST_POSTED amounts within that same window, so "what they've
+ * earned" is a specific, unambiguous number rather than something the
+ * reader has to eyeball off the line's slope.
  */
 function buildSavingsHistory_(userId) {
-  var rate = getCurrentRate(userId);
   var today = nowDate();
 
   var cashTxns = findWhere(SHEETS.TRANSACTIONS, function (t) {
@@ -118,31 +116,26 @@ function buildSavingsHistory_(userId) {
   cashTxns.forEach(function (t) { t._effectiveDate = toDateObject_(t.ReviewedAt || t.RequestedAt); });
   cashTxns.sort(function (a, b) { return a._effectiveDate - b._effectiveDate; });
 
-  var points = [];
-  for (var i = 8; i >= 0; i--) {
-    var monthStart = addMonths_(startOfMonth_(today), -i);
-    var cutoff = (i === 0) ? today : addDays(addMonths_(monthStart, 1), -1);
-    points.push({ label: monthLabel_(monthStart), value: roundMoney(balanceAsOf_(cashTxns, cutoff)), projected: false });
-  }
+  var cutoffs = weeklyCutoffsPastAndCurrentMonth_(today);
+  var points = cutoffs.map(function (cutoff) {
+    return { label: shortDateLabel_(cutoff), value: roundMoney(balanceAsOf_(cashTxns, cutoff)), projected: false };
+  });
 
-  var baselineBalance = points[points.length - 1].value;
-  for (var p = 1; p <= 4; p++) {
-    var targetDate = addMonths_(today, p);
-    var days = daysBetween(today, targetDate);
-    var projectedBalance = baselineBalance * Math.pow(1 + rate / CONFIG.DAILY_ACCRUAL_DAY_COUNT, days);
-    points.push({ label: monthLabel_(targetDate), value: roundMoney(projectedBalance), projected: true });
-  }
+  var windowStart = cutoffs[0];
+  var interestEarned = cashTxns
+    .filter(function (t) { return t.Type === TRANSACTION_TYPE.INTEREST_POSTED && t._effectiveDate >= windowStart && t._effectiveDate <= today; })
+    .reduce(function (sum, t) { return sum + Number(t.Amount); }, 0);
 
-  return { points: points, currentBalance: baselineBalance, rate: rate };
+  return { points: points, currentBalance: points[points.length - 1].value, interestEarned: roundMoney(interestEarned) };
 }
 
-/** Kid (or admin viewing their own account): savings history + projection. */
+/** Kid (or admin viewing their own account): savings history + interest earned. */
 function getSavingsHistory(token) {
   var user = validateSession(token);
   return buildSavingsHistory_(user.UserId);
 }
 
-/** Admin-only: any kid's savings history + projection. */
+/** Admin-only: any kid's savings history + interest earned. */
 function getUserSavingsHistory(token, targetUserId) {
   var admin = validateSession(token);
   requireAdmin_(admin);
