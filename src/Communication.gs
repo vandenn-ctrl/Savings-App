@@ -162,15 +162,19 @@ function sendMessageToParent(token, message) {
 }
 
 /**
- * Admin-only: every KID_MESSAGE, newest first, joined with display name --
- * the in-app "comms area" for the Manage tab, so kid messages are visible
- * even if the email notification doesn't reach the admin's inbox.
+ * Admin-only: every KID_MESSAGE not yet replied to, newest first, joined
+ * with display name -- the Inbox view. Replying (see markKidMessageReplied)
+ * clears a message out of this list, but it stays visible in the kid's own
+ * history and the admin's per-kid history/all-transactions view, since
+ * those read straight from Transactions with no such filter.
  */
 function listKidMessages(token) {
   var admin = validateSession(token);
   requireAdmin_(admin);
 
-  var messages = findWhere(SHEETS.TRANSACTIONS, function (t) { return t.Type === TRANSACTION_TYPE.KID_MESSAGE; });
+  var messages = findWhere(SHEETS.TRANSACTIONS, function (t) {
+    return t.Type === TRANSACTION_TYPE.KID_MESSAGE && !t.ReviewedBy;
+  });
   var users = getAllRows(SHEETS.USERS);
   var nameById = {};
   users.forEach(function (u) { nameById[u.UserId] = u.DisplayName; });
@@ -178,6 +182,21 @@ function listKidMessages(token) {
   messages.forEach(function (m) { m.displayName = nameById[m.UserId] || m.UserId; });
   messages.sort(function (a, b) { return toDateObject_(b.RequestedAt) - toDateObject_(a.RequestedAt); });
   return messages;
+}
+
+/** Admin-only: marks a KID_MESSAGE as replied to, so listKidMessages stops returning it. */
+function markKidMessageReplied(token, transactionId) {
+  var admin = validateSession(token);
+  requireAdmin_(admin);
+
+  var found = findRowById(SHEETS.TRANSACTIONS, 'TransactionId', transactionId);
+  if (!found || found.object.Type !== TRANSACTION_TYPE.KID_MESSAGE) return { ok: false };
+
+  updateRowByIndex(SHEETS.TRANSACTIONS, found.rowIndex, {
+    ReviewedBy: admin.UserId,
+    ReviewedAt: toIsoString(nowDate())
+  });
+  return { ok: true };
 }
 
 /**

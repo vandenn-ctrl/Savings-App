@@ -783,6 +783,7 @@
   // --- Communicate tab: a small traditional email client (Inbox/Sent/Drafts/Compose) ---
   var _commSection = 'inbox';
   var _commEditingDraftId = null;
+  var _commReplyingToMessageId = null;
   var _commDraftsCache = [];
 
   function loadCommunicateTab() {
@@ -813,7 +814,7 @@
       var rows = messages.map(function (m) {
         return '<tr><td>' + escapeHtml(m.RequestedAt) + '</td><td>' + escapeHtml(m.displayName || m.UserId) +
           '</td><td>' + escapeHtml(m.Notes || '') + '</td><td>' +
-          '<button class="secondary" onclick="commReplyTo(\'' + m.UserId + '\')">Reply</button></td></tr>';
+          '<button class="secondary" onclick="commReplyTo(\'' + m.UserId + '\', \'' + m.TransactionId + '\')">Reply</button></td></tr>';
       }).join('');
       document.getElementById('comm-inbox-rows').innerHTML = rows || '<tr><td colspan="4" class="muted">No messages yet.</td></tr>';
     });
@@ -847,6 +848,7 @@
     }
     if (!d) return;
     _commEditingDraftId = draftId;
+    _commReplyingToMessageId = null;
     document.getElementById('comm-target-user').value = d.TargetUserId || '';
     document.getElementById('comm-to-email').value = d.ToEmail || '';
     document.getElementById('comm-subject').value = d.Subject || '';
@@ -863,8 +865,9 @@
     }, null, button);
   }
 
-  function commReplyTo(userId) {
+  function commReplyTo(userId, messageId) {
     _commEditingDraftId = null;
+    _commReplyingToMessageId = messageId;
     document.getElementById('comm-target-user').value = userId;
     commOnTargetUserChange();
     document.getElementById('comm-subject').value = 'Re: your message';
@@ -880,6 +883,7 @@
 
   function commClearCompose_() {
     _commEditingDraftId = null;
+    _commReplyingToMessageId = null;
     document.getElementById('comm-target-user').value = '';
     document.getElementById('comm-to-email').value = '';
     document.getElementById('comm-subject').value = '';
@@ -901,6 +905,7 @@
       draftId: _commEditingDraftId || null
     };
     if (!params.toEmail) { showError('Enter a recipient email address.'); return; }
+    var replyingTo = _commReplyingToMessageId;
 
     callAuthed('sendCustomEmail', [params], function () {
       showError('Email sent.');
@@ -908,6 +913,9 @@
       commClearCompose_();
       loadCommSent();
       if (hadDraft) loadCommDrafts();
+      if (replyingTo) {
+        callAuthed('markKidMessageReplied', [replyingTo], function () { loadCommInbox(); });
+      }
     }, null, button);
   }
 
