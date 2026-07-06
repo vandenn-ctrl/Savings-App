@@ -78,6 +78,15 @@
 
   <div id="admin-tab-users" class="hidden">
     <div class="card">
+      <h3>My account</h3>
+      <label for="admin-my-old-passcode">Current access code</label>
+      <input id="admin-my-old-passcode" type="password" />
+      <label for="admin-my-new-passcode">New access code</label>
+      <input id="admin-my-new-passcode" type="password" />
+      <button onclick="adminChangeMyPasscode(this)">Update my access code</button>
+    </div>
+
+    <div class="card">
       <h3>Create account</h3>
       <div class="row">
         <div>
@@ -464,6 +473,17 @@
     var rate = rateStr === '' ? null : parseFloat(rateStr);
     callAuthed('setUserRateOverride', [userId, rate], function () {
       showError('Override saved.');
+    }, null, button);
+  }
+
+  function adminChangeMyPasscode(button) {
+    var oldCode = document.getElementById('admin-my-old-passcode').value;
+    var newCode = document.getElementById('admin-my-new-passcode').value;
+    if (!oldCode || !newCode) { showError('Enter both current and new access code.'); return; }
+    callAuthed('changePasscode', [oldCode, newCode], function () {
+      document.getElementById('admin-my-old-passcode').value = '';
+      document.getElementById('admin-my-new-passcode').value = '';
+      showError('Access code updated.');
     }, null, button);
   }
 
