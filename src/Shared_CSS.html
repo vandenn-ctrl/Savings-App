@@ -168,4 +168,42 @@
   }
   .top-bar-role-pill.role-ADMIN { background: #ffe4b8; color: #7a4a00; }
   .top-bar-role-pill.role-KID { background: #d9e8ff; color: #1c4c8c; }
+
+  /* --- Kids savings/investments stacked chart ------------------------- */
+  .kids-chart-legend { display: flex; gap: 16px; margin-bottom: 10px; font-size: 13px; color: #52514e; }
+  .kids-chart-legend .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+  .kids-chart-legend .swatch-savings { background: #2a78d6; }
+  .kids-chart-legend .swatch-investments { background: #1baf7a; }
+
+  .kids-chart-wrap { overflow-x: auto; }
+  .kids-chart-svg text { font-family: inherit; }
+  .kids-chart-gridline { stroke: #e1e0d9; stroke-width: 1; }
+  .kids-chart-baseline { stroke: #c3c2b7; stroke-width: 1; }
+  .kids-chart-axis-label { fill: #898781; font-size: 11px; }
+  .kids-chart-category-label { fill: #52514e; font-size: 12px; }
+  .kids-chart-total-label { fill: #0b0b0b; font-size: 12px; font-weight: 600; }
+  .kids-chart-bar-savings { fill: #2a78d6; }
+  .kids-chart-bar-investments { fill: #1baf7a; }
+  .kids-chart-bar-savings, .kids-chart-bar-investments { cursor: pointer; }
+  .kids-chart-hit:hover ~ .kids-chart-bar-savings,
+  .kids-chart-bar-savings:hover, .kids-chart-bar-investments:hover { opacity: 0.85; }
+
+  .kids-chart-tooltip {
+    position: fixed;
+    pointer-events: none;
+    background: #fcfcfb;
+    border: 1px solid #e1e0d9;
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 12px;
+    color: #0b0b0b;
+    box-shadow: 0 2px 8px rgba(11, 11, 11, 0.16);
+    display: none;
+    z-index: 1100;
+    white-space: nowrap;
+  }
+  .kids-chart-tooltip .tt-title { font-weight: 700; margin-bottom: 4px; }
+  .kids-chart-tooltip .tt-row { display: flex; align-items: center; gap: 6px; }
+  .kids-chart-tooltip .tt-key { display: inline-block; width: 8px; height: 8px; border-radius: 2px; }
+  .kids-chart-tooltip .tt-value { font-weight: 700; margin-left: auto; padding-left: 12px; }
 </style>
