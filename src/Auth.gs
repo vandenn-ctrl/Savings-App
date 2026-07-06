@@ -68,6 +68,39 @@ function logout(token) {
 }
 
 /**
+ * Admin-only: mints a real session for another family member without
+ * needing their passcode, so a parent can preview exactly what a kid sees
+ * instead of having to log out and log back in with the kid's own access
+ * code. Returns the same shape as login() so the client can setSession()
+ * with it directly; the client is responsible for stashing its own admin
+ * session first so it can switch back (see handleViewAsChild/
+ * exitViewAsChild in Index.html).
+ */
+function adminViewAsUser(token, targetUserId) {
+  var admin = validateSession(token);
+  requireAdmin_(admin);
+
+  var target = findRowById(SHEETS.USERS, 'UserId', targetUserId);
+  if (!target || target.object.Status !== USER_STATUS.ACTIVE) {
+    throw new Error('Account not found or disabled.');
+  }
+  var user = target.object;
+
+  var newToken = Utilities.getUuid();
+  putSession(newToken, user.UserId);
+  logAudit_(admin.UserId, 'VIEW_AS_USER', 'User', targetUserId, {});
+
+  return {
+    token: newToken,
+    userId: user.UserId,
+    role: user.Role,
+    displayName: user.DisplayName,
+    avatar: user.Avatar || DEFAULT_AVATAR,
+    theme: user.Theme || ''
+  };
+}
+
+/**
  * Admin-only: creates a new family member account (kid or another admin).
  */
 function createAccount(token, params) {

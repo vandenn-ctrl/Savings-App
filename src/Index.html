@@ -16,6 +16,10 @@
         </div>
       </div>
     </div>
+    <div id="view-as-banner" class="hidden">
+      <span>👁️ Viewing as a child</span>
+      <button class="secondary" onclick="exitViewAsChild()">Back to parent</button>
+    </div>
   </div>
 
   <div id="version-info-badge" onclick="showVersionInfo()" title="What's new">i</div>
@@ -74,6 +78,7 @@
       topBar.classList.remove('hidden');
       fabRoot.classList.remove('hidden');
       fabQuickActions.classList.toggle('hidden', role !== 'ADMIN');
+      document.getElementById('view-as-banner').classList.toggle('hidden', !getViewAsReturn_());
       applyTheme(getTheme());
       document.getElementById('top-bar-avatar').textContent = getAvatar();
       document.getElementById('top-bar-name').textContent = getDisplayName() || '';
@@ -174,6 +179,52 @@
       });
     }
 
+    /** localStorage key holding the admin's own session while previewing a kid's account, so "Back to parent" doesn't need re-login. */
+    var VIEW_AS_RETURN_KEY_ = 'fs_view_as_return';
+
+    function getViewAsReturn_() {
+      try { return JSON.parse(localStorage.getItem(VIEW_AS_RETURN_KEY_) || 'null'); } catch (e) { return null; }
+    }
+
+    /** Admin-only: preview any kid's account exactly as they see it, without needing their access code. */
+    function handleViewAsChild(button) {
+      callAuthed('listUsers', [], function (users) {
+        var kids = users.filter(function (u) { return u.role === 'KID'; });
+        if (kids.length === 0) { showError('No kids to view yet.'); return; }
+
+        showModal({
+          title: 'View as child',
+          bodyText: 'See exactly what this child sees. You can switch back to your own account anytime.',
+          fields: [{
+            key: 'targetUser', label: 'Child', type: 'select',
+            options: kids.map(function (k) { return { value: k.userId, label: (k.avatar || '🙂') + ' ' + k.displayName }; })
+          }],
+          confirmLabel: 'View'
+        }).then(function (result) {
+          if (!result.confirmed) return;
+
+          callAuthed('adminViewAsUser', [result.values.targetUser], function (session) {
+            localStorage.setItem(VIEW_AS_RETURN_KEY_, JSON.stringify({
+              token: getToken(), role: getRole(), displayName: getDisplayName(), avatar: getAvatar(), theme: getTheme()
+            }));
+            setSession(session);
+            routeToDashboard();
+          }, null, button);
+        });
+      });
+    }
+
+    /** Switches back to the stashed admin session, revoking the temporary "view as" session. */
+    function exitViewAsChild() {
+      var adminSession = getViewAsReturn_();
+      if (!adminSession) return;
+      var viewAsToken = getToken();
+      localStorage.removeItem(VIEW_AS_RETURN_KEY_);
+      setSession(adminSession);
+      routeToDashboard();
+      callPublic('logout', [viewAsToken], function () {}, function () {});
+    }
+
     function handleLogout(button) {
       callAuthed('logout', [], function () {
         clearSession();
@@ -204,6 +255,7 @@
     function fabAdminMenuItems_() {
       return [
         { key: 'kids', icon: '👨‍👩‍👧‍👦', label: 'Kids', action: function () { adminShowTab('kids'); } },
+        { key: 'viewas', icon: '👁️', label: 'View as child', action: handleViewAsChild },
         { key: 'rates', icon: '💹', label: 'Rates', action: function () { adminShowTab('rates'); } },
         { key: 'users', icon: '👤', label: 'Users', action: function () { adminShowTab('users'); } },
         { key: 'manage', icon: '🛠️', label: 'Manage', action: function () { adminShowTab('manage'); } },

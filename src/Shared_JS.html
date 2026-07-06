@@ -30,6 +30,7 @@
     localStorage.removeItem('fs_displayName');
     localStorage.removeItem('fs_avatar');
     localStorage.removeItem('fs_theme');
+    localStorage.removeItem('fs_view_as_return'); // stale "view as child" stash shouldn't survive a real logout
     applyTheme('');
   }
 
@@ -291,9 +292,10 @@
    * underlying feature.
    */
   var APP_VERSION_INFO = {
-    version: 'v1.14',
+    version: 'v1.15',
     date: '2026-07-06',
     notes: [
+      '"View as child" (hamburger menu): preview any kid\'s account without their access code, with a "Back to parent" banner',
       'Admin savings chart legend now shows each kid\'s interest earned',
       'Admin +/- now opens "New transaction" for any family member (was: view transactions)',
       'Reset access code moved under a new "Setup" page (with Theme)',
