@@ -785,17 +785,40 @@
   var _commEditingDraftId = null;
   var _commReplyingToMessageId = null;
   var _commDraftsCache = [];
+  var _commUsersCache = [];
 
   function loadCommunicateTab() {
-    callAuthed('listUsers', [], function (users) {
-      var select = document.getElementById('comm-target-user');
-      select.innerHTML = '<option value="">-- None / just a custom message --</option>' +
-        users.map(function (u) {
-          return '<option value="' + u.userId + '" data-email="' + escapeHtml(u.email || '') + '">' +
-            escapeHtml(u.avatar || '🙂') + ' ' + escapeHtml(u.displayName) + '</option>';
-        }).join('');
-    });
+    commEnsureUsersLoaded_(true, function () {});
     commShowSection(_commSection);
+  }
+
+  function commRenderTargetUserOptions_() {
+    var select = document.getElementById('comm-target-user');
+    var previous = select.value;
+    select.innerHTML = '<option value="">-- None / just a custom message --</option>' +
+      _commUsersCache.map(function (u) {
+        return '<option value="' + u.userId + '" data-email="' + escapeHtml(u.email || '') + '">' +
+          escapeHtml(u.avatar || '🙂') + ' ' + escapeHtml(u.displayName) + '</option>';
+      }).join('');
+    if (previous) select.value = previous;
+  }
+
+  /**
+   * The target-user dropdown (which is what fills in a reply's/draft's "About
+   * which family member" name) is populated from an async listUsers call.
+   * Reply and Edit-draft need it done *before* they pre-fill a selection --
+   * otherwise clicking Reply the instant the tab opens can beat that call
+   * back and silently leave the dropdown on its blank default. force=true
+   * always refetches (used by the tab's own load); otherwise the cache is
+   * reused once populated.
+   */
+  function commEnsureUsersLoaded_(force, callback) {
+    if (!force && _commUsersCache.length > 0) { callback(); return; }
+    callAuthed('listUsers', [], function (users) {
+      _commUsersCache = users;
+      commRenderTargetUserOptions_();
+      callback();
+    });
   }
 
   function commShowSection(name) {
@@ -849,14 +872,16 @@
     if (!d) return;
     _commEditingDraftId = draftId;
     _commReplyingToMessageId = null;
-    document.getElementById('comm-target-user').value = d.TargetUserId || '';
-    document.getElementById('comm-to-email').value = d.ToEmail || '';
-    document.getElementById('comm-subject').value = d.Subject || '';
-    document.getElementById('comm-include-savings').checked = !!d.IncludeSavings;
-    document.getElementById('comm-include-investments').checked = !!d.IncludeInvestments;
-    document.getElementById('comm-include-history').checked = !!d.IncludeHistory;
-    document.getElementById('comm-custom-message').value = d.CustomMessage || '';
-    commShowSection('compose');
+    commEnsureUsersLoaded_(false, function () {
+      document.getElementById('comm-target-user').value = d.TargetUserId || '';
+      document.getElementById('comm-to-email').value = d.ToEmail || '';
+      document.getElementById('comm-subject').value = d.Subject || '';
+      document.getElementById('comm-include-savings').checked = !!d.IncludeSavings;
+      document.getElementById('comm-include-investments').checked = !!d.IncludeInvestments;
+      document.getElementById('comm-include-history').checked = !!d.IncludeHistory;
+      document.getElementById('comm-custom-message').value = d.CustomMessage || '';
+      commShowSection('compose');
+    });
   }
 
   function commDeleteDraft(button, draftId) {
@@ -868,10 +893,12 @@
   function commReplyTo(userId, messageId) {
     _commEditingDraftId = null;
     _commReplyingToMessageId = messageId;
-    document.getElementById('comm-target-user').value = userId;
-    commOnTargetUserChange();
-    document.getElementById('comm-subject').value = 'Re: your message';
-    commShowSection('compose');
+    commEnsureUsersLoaded_(false, function () {
+      document.getElementById('comm-target-user').value = userId;
+      commOnTargetUserChange();
+      document.getElementById('comm-subject').value = 'Re: your message';
+      commShowSection('compose');
+    });
   }
 
   function commOnTargetUserChange() {
