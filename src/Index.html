@@ -145,6 +145,15 @@
       });
     }
 
+    function handleGoToEmail() {
+      adminShowTab('manage');
+      _fabActiveTab = 'manage';
+      setTimeout(function () {
+        var el = document.getElementById('manage-email-card');
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 50);
+    }
+
     function handleSwitchUser(button) {
       showModal({
         title: 'Switch User',
@@ -192,9 +201,12 @@
         { key: 'overview', icon: '🏠', label: 'Overview', action: function () { kidShowTab('overview'); } },
         { key: 'invest', icon: '📈', label: 'Investments', action: function () { kidShowTab('invest'); } },
         { key: 'history', icon: '🕒', label: 'History', action: function () { kidShowTab('history'); } },
-        { key: 'settings', icon: '⚙️', label: 'Settings', action: function () { kidShowTab('settings'); } }
+        { key: 'settings', icon: '🔧', label: 'Settings', action: function () { kidShowTab('settings'); } }
       ];
-      items.push({ key: 'theme', icon: '🎨', label: 'Theme', action: handleCustomizeTheme });
+      if (role === 'ADMIN') {
+        items.push({ key: 'email', icon: '✉️', label: 'Email', action: handleGoToEmail });
+      }
+      items.push({ key: 'theme', icon: '⚙️', label: 'Theme', action: handleCustomizeTheme });
       items.push({ key: 'switch', icon: '🔀', label: 'Switch User', action: handleSwitchUser });
       items.push({ key: 'logout', icon: '🚪', label: 'Log out', action: handleLogout });
       return items;
@@ -238,7 +250,14 @@
         closeFabMenu();
       } else {
         renderFabMenu();
-        document.body.classList.add('fab-menu-open');
+        // Force layout so the freshly-created items' initial (closed) state
+        // paints before the class toggle -- otherwise the browser collapses
+        // both states into one frame and the fan-out never animates.
+        requestAnimationFrame(function () {
+          requestAnimationFrame(function () {
+            document.body.classList.add('fab-menu-open');
+          });
+        });
       }
     }
 
