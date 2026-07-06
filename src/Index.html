@@ -189,30 +189,31 @@
     var _fabActiveTab = 'overview';
     var _fabMenuLevel = 'main'; // 'main' (the tabs) or 'more' (account/utility actions)
 
-    /** The main tabs for the current role -- these stay directly on the spiral. */
+    /** The 3 most-used actions for the current role -- these stay directly on the spiral. */
     function fabTabItems_() {
       var role = getRole();
       return role === 'ADMIN' ? [
-        { key: 'overview', icon: '🏠', label: 'Overview', action: function () { adminShowTab('overview'); } },
-        { key: 'approvals', icon: '✅', label: 'Approvals', action: function () { adminShowTab('approvals'); } },
+        { key: 'overview', icon: '🏠', label: 'Home', action: function () { adminShowTab('overview'); } },
+        { key: 'approvals', icon: '✅', label: 'Approve', action: function () { adminShowTab('approvals'); } },
+        { key: 'email', icon: '✉️', label: 'Email', action: handleGoToEmail }
+      ] : [
+        { key: 'overview', icon: '🏠', label: 'Home', action: function () { kidShowTab('overview'); } },
+        { key: 'invest', icon: '📈', label: 'Investments', action: function () { kidShowTab('invest'); } },
+        { key: 'history', icon: '🕒', label: 'History', action: function () { kidShowTab('history'); } }
+      ];
+    }
+
+    /** Everything else -- tucked behind the "More" item instead of cluttering the main spiral. */
+    function fabMoreItems_() {
+      var role = getRole();
+      var items = role === 'ADMIN' ? [
         { key: 'kids', icon: '👨‍👩‍👧‍👦', label: 'Kids', action: function () { adminShowTab('kids'); } },
         { key: 'rates', icon: '💹', label: 'Rates', action: function () { adminShowTab('rates'); } },
         { key: 'users', icon: '👤', label: 'Users', action: function () { adminShowTab('users'); } },
         { key: 'manage', icon: '🛠️', label: 'Manage', action: function () { adminShowTab('manage'); } }
       ] : [
-        { key: 'overview', icon: '🏠', label: 'Overview', action: function () { kidShowTab('overview'); } },
-        { key: 'invest', icon: '📈', label: 'Investments', action: function () { kidShowTab('invest'); } },
-        { key: 'history', icon: '🕒', label: 'History', action: function () { kidShowTab('history'); } },
         { key: 'settings', icon: '🔧', label: 'Settings', action: function () { kidShowTab('settings'); } }
       ];
-    }
-
-    /** Everything that isn't a tab -- tucked behind the "More" item instead of cluttering the main spiral. */
-    function fabMoreItems_() {
-      var items = [];
-      if (getRole() === 'ADMIN') {
-        items.push({ key: 'email', icon: '✉️', label: 'Email', action: handleGoToEmail });
-      }
       items.push({ key: 'theme', icon: '⚙️', label: 'Theme', action: handleCustomizeTheme });
       items.push({ key: 'switch', icon: '🔀', label: 'Switch User', action: handleSwitchUser });
       items.push({ key: 'logout', icon: '🚪', label: 'Log out', action: handleLogout });
